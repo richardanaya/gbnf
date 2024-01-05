@@ -134,10 +134,10 @@ impl Display for Production {
                     s.push_str(&format!("\"{}\"", terminal.value));
                 }
                 ProductionItem::NonTerminal(non_terminal) => {
-                    s.push_str(&format!("{}", non_terminal.name));
+                    s.push_str(&non_terminal.name.to_string());
                 }
                 ProductionItem::Group(group) => {
-                    s.push_str(&format!("({})", group.to_string()));
+                    s.push_str(&format!("({})", group));
                 }
                 ProductionItem::OneOf(one_of) => {
                     let mut first = true;
@@ -147,11 +147,11 @@ impl Display for Production {
                         } else {
                             s.push_str(" | ");
                         }
-                        s.push_str(&format!("{}", production.to_string()));
+                        s.push_str(&format!("{}", production));
                     }
                 }
                 ProductionItem::Repetition(repetition) => {
-                    s.push_str(&format!("{}", repetition.to_string()));
+                    s.push_str(&format!("{}", repetition));
                 }
             }
         }
