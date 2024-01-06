@@ -35,15 +35,14 @@ pub enum RepetitionType {
 }
 
 #[derive(Clone, Debug)]
-pub enum RepetitionItem {
+pub enum CharacterSetItem {
     Character(char),
-    Range(char, char),
+    CharacterRange(char, char),
 }
 
 #[derive(Clone, Debug)]
-pub struct Repetition {
-    pub items: Vec<RepetitionItem>,
-    pub repetition_type: RepetitionType,
+pub struct CharacterSet {
+    pub items: Vec<CharacterSetItem>,
 }
 
 // Represents different types of items that can be part of a production.
@@ -51,14 +50,14 @@ pub struct Repetition {
 pub enum ProductionItem {
     // example: # This is a comment
     Comment(String),
-    Terminal(TerminalSymbol),
-    NonTerminal(NonTerminalSymbol),
+    Terminal(TerminalSymbol, RepetitionType),
+    NonTerminal(NonTerminalSymbol, RepetitionType),
     // example: ( expr "=" ws term "\n" )
     Group(Box<Production>),
     // example: ident | num | "(" ws expr ")" ws
     OneOf(Vec<Production>),
     // examples: [a-z], [a-z0-9_]*, [0-9]+
-    Repetition(Repetition),
+    CharacterSet(CharacterSet, RepetitionType),
     // Additional items as necessary
 }
 
@@ -90,35 +89,24 @@ impl Display for NonTerminalSymbol {
     }
 }
 
-impl Display for Repetition {
+impl Display for CharacterSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut s = String::new();
+        s.push('[');
         for item in &self.items {
             match item {
-                RepetitionItem::Character(c) => {
+                CharacterSetItem::Character(c) => {
                     s.push(*c);
                 }
-                RepetitionItem::Range(start, end) => {
+                CharacterSetItem::CharacterRange(start, end) => {
                     s.push(*start);
                     s.push('-');
                     s.push(*end);
                 }
             }
         }
-        match self.repetition_type {
-            RepetitionType::ZeroOrMore => {
-                write!(f, "{}*", s)
-            }
-            RepetitionType::OneOrMore => {
-                write!(f, "{}+", s)
-            }
-            RepetitionType::ZeroOrOne => {
-                write!(f, "{}?", s)
-            }
-            RepetitionType::One => {
-                write!(f, "{}", s)
-            }
-        }
+        s.push(']');
+        write!(f, "{}", s)
     }
 }
 
@@ -128,13 +116,34 @@ impl Display for Production {
         for item in &self.items {
             match item {
                 ProductionItem::Comment(comment) => {
-                    s.push_str(&format!("# {}\n", comment));
+                    s.push_str(&format!("#{}\n", comment));
                 }
-                ProductionItem::Terminal(terminal) => {
-                    s.push_str(&format!("\"{}\"", terminal.value));
+                ProductionItem::Terminal(terminal, rep) => {
+                    s.push_str(&format!(
+                        "\"{}{}\"",
+                        terminal.value,
+                        match rep {
+                            RepetitionType::ZeroOrMore => "*",
+                            RepetitionType::OneOrMore => "+",
+                            RepetitionType::ZeroOrOne => "?",
+                            RepetitionType::One => "",
+                        }
+                    ));
                 }
-                ProductionItem::NonTerminal(non_terminal) => {
-                    s.push_str(&non_terminal.name.to_string());
+                ProductionItem::NonTerminal(non_terminal, rep) => {
+                    s.push_str(
+                        format!(
+                            "{}{}",
+                            &non_terminal.name.to_string(),
+                            match rep {
+                                RepetitionType::ZeroOrMore => "*",
+                                RepetitionType::OneOrMore => "+",
+                                RepetitionType::ZeroOrOne => "?",
+                                RepetitionType::One => "",
+                            }
+                        )
+                        .as_str(),
+                    );
                 }
                 ProductionItem::Group(group) => {
                     s.push_str(&format!("({})", group));
@@ -150,8 +159,17 @@ impl Display for Production {
                         s.push_str(&format!("{}", production));
                     }
                 }
-                ProductionItem::Repetition(repetition) => {
-                    s.push_str(&format!("{}", repetition));
+                ProductionItem::CharacterSet(character_set, rep) => {
+                    s.push_str(&format!(
+                        "{}{}",
+                        character_set,
+                        match rep {
+                            RepetitionType::ZeroOrMore => "*",
+                            RepetitionType::OneOrMore => "+",
+                            RepetitionType::ZeroOrOne => "?",
+                            RepetitionType::One => "",
+                        }
+                    ));
                 }
             }
         }
@@ -165,7 +183,7 @@ impl Display for Grammar {
         for item in &self.items {
             match item {
                 GrammarItem::Comment(comment) => {
-                    s.push_str(&format!("# {}\n", comment));
+                    s.push_str(&format!("#{}\n", comment));
                 }
                 GrammarItem::Rule(rule) => {
                     s.push_str(&format!("{} ::= {}\n", rule.lhs, rule.rhs));
@@ -181,7 +199,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_outputs() {
+    fn simple_0() {
         // root ::= "yes" | "no"
         let g = Grammar {
             items: vec![GrammarItem::Rule(Rule {
@@ -191,14 +209,20 @@ mod tests {
                 rhs: Production {
                     items: vec![ProductionItem::OneOf(vec![
                         Production {
-                            items: vec![ProductionItem::Terminal(TerminalSymbol {
-                                value: "yes".to_string(),
-                            })],
+                            items: vec![ProductionItem::Terminal(
+                                TerminalSymbol {
+                                    value: "yes".to_string(),
+                                },
+                                RepetitionType::One,
+                            )],
                         },
                         Production {
-                            items: vec![ProductionItem::Terminal(TerminalSymbol {
-                                value: "no".to_string(),
-                            })],
+                            items: vec![ProductionItem::Terminal(
+                                TerminalSymbol {
+                                    value: "no".to_string(),
+                                },
+                                RepetitionType::One,
+                            )],
                         },
                     ])],
                 },
@@ -206,5 +230,145 @@ mod tests {
         };
         let s = g.to_string();
         assert_eq!(s, "root ::= \"yes\" | \"no\"\n");
+    }
+
+    #[test]
+    fn simple_1() {
+        //# This is a comment
+        // root ::= answers
+        // answers := "yes" | "no"
+
+        let g = Grammar {
+            items: vec![
+                GrammarItem::Comment(" This is a comment".to_string()),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "root".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::NonTerminal(
+                            NonTerminalSymbol {
+                                name: "answers".to_string(),
+                            },
+                            RepetitionType::One,
+                        )],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "answers".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::OneOf(vec![
+                            Production {
+                                items: vec![ProductionItem::Terminal(
+                                    TerminalSymbol {
+                                        value: "yes".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                )],
+                            },
+                            Production {
+                                items: vec![ProductionItem::Terminal(
+                                    TerminalSymbol {
+                                        value: "no".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                )],
+                            },
+                        ])],
+                    },
+                }),
+            ],
+        };
+        let s = g.to_string();
+        assert_eq!(
+            s,
+            "# This is a comment\nroot ::= answers\nanswers ::= \"yes\" | \"no\"\n"
+        );
+    }
+
+    #[test]
+    fn simple_2() {
+        // # A probably incorrect grammar for japanese word
+        // root        ::= jp-char+
+        // jp-char     ::= hiragana | katakana
+        // hiragana    ::= [ぁ-ゟ]
+        // katakana    ::= [ァ-ヿ]
+
+        let g = Grammar {
+            items: vec![
+                GrammarItem::Comment(" A probably incorrect grammar for japanese word".to_string()),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "root".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::NonTerminal(
+                            NonTerminalSymbol {
+                                name: "jp-char".to_string(),
+                            },
+                            RepetitionType::OneOrMore,
+                        )],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "jp-char".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::OneOf(vec![
+                            Production {
+                                items: vec![ProductionItem::NonTerminal(
+                                    NonTerminalSymbol {
+                                        name: "hiragana".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                )],
+                            },
+                            Production {
+                                items: vec![ProductionItem::NonTerminal(
+                                    NonTerminalSymbol {
+                                        name: "katakana".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                )],
+                            },
+                        ])],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "hiragana".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::CharacterSet(
+                            CharacterSet {
+                                items: vec![CharacterSetItem::CharacterRange('ぁ', 'ゟ')],
+                            },
+                            RepetitionType::One,
+                        )],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "katakana".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::CharacterSet(
+                            CharacterSet {
+                                items: vec![CharacterSetItem::CharacterRange('ァ', 'ヿ')],
+                            },
+                            RepetitionType::One,
+                        )],
+                    },
+                }),
+            ],
+        };
+        let s = g.to_string();
+        assert_eq!(
+            s,
+            "# A probably incorrect grammar for japanese word\nroot ::= jp-char+\njp-char ::= hiragana | katakana\nhiragana ::= [ぁ-ゟ]\nkatakana ::= [ァ-ヿ]\n"
+        );
     }
 }
