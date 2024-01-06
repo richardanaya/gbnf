@@ -53,7 +53,7 @@ pub enum ProductionItem {
     Terminal(TerminalSymbol, RepetitionType),
     NonTerminal(NonTerminalSymbol, RepetitionType),
     // example: ( expr "=" ws term "\n" )
-    Group(Box<Production>),
+    Group(Box<Production>, RepetitionType),
     // example: ident | num | "(" ws expr ")" ws
     OneOf(Vec<Production>),
     // examples: [a-z], [a-z0-9_]*, [0-9]+
@@ -110,43 +110,39 @@ impl Display for CharacterSet {
     }
 }
 
+impl Display for RepetitionType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            RepetitionType::ZeroOrMore => write!(f, "*"),
+            RepetitionType::OneOrMore => write!(f, "+"),
+            RepetitionType::ZeroOrOne => write!(f, "?"),
+            RepetitionType::One => write!(f, ""),
+        }
+    }
+}
+
 impl Display for Production {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut is_first_production = true;
         let mut s = String::new();
         for item in &self.items {
+            if is_first_production {
+                is_first_production = false;
+            } else {
+                s.push(' ');
+            }
             match item {
                 ProductionItem::Comment(comment) => {
                     s.push_str(&format!("#{}\n", comment));
                 }
                 ProductionItem::Terminal(terminal, rep) => {
-                    s.push_str(&format!(
-                        "\"{}{}\"",
-                        terminal.value,
-                        match rep {
-                            RepetitionType::ZeroOrMore => "*",
-                            RepetitionType::OneOrMore => "+",
-                            RepetitionType::ZeroOrOne => "?",
-                            RepetitionType::One => "",
-                        }
-                    ));
+                    s.push_str(&format!("\"{}{}\"", terminal.value, rep));
                 }
                 ProductionItem::NonTerminal(non_terminal, rep) => {
-                    s.push_str(
-                        format!(
-                            "{}{}",
-                            &non_terminal.name.to_string(),
-                            match rep {
-                                RepetitionType::ZeroOrMore => "*",
-                                RepetitionType::OneOrMore => "+",
-                                RepetitionType::ZeroOrOne => "?",
-                                RepetitionType::One => "",
-                            }
-                        )
-                        .as_str(),
-                    );
+                    s.push_str(format!("{}{}", &non_terminal.name.to_string(), rep).as_str());
                 }
-                ProductionItem::Group(group) => {
-                    s.push_str(&format!("({})", group));
+                ProductionItem::Group(group, rep) => {
+                    s.push_str(&format!("({}){}", group, rep));
                 }
                 ProductionItem::OneOf(one_of) => {
                     let mut first = true;
@@ -160,16 +156,7 @@ impl Display for Production {
                     }
                 }
                 ProductionItem::CharacterSet(character_set, rep) => {
-                    s.push_str(&format!(
-                        "{}{}",
-                        character_set,
-                        match rep {
-                            RepetitionType::ZeroOrMore => "*",
-                            RepetitionType::OneOrMore => "+",
-                            RepetitionType::ZeroOrOne => "?",
-                            RepetitionType::One => "",
-                        }
-                    ));
+                    s.push_str(&format!("{}{}", character_set, rep));
                 }
             }
         }
@@ -369,6 +356,159 @@ mod tests {
         assert_eq!(
             s,
             "# A probably incorrect grammar for japanese word\nroot ::= jp-char+\njp-char ::= hiragana | katakana\nhiragana ::= [ぁ-ゟ]\nkatakana ::= [ァ-ヿ]\n"
+        );
+    }
+
+    #[test]
+    fn simple_3() {
+        // # A probably incorrect grammar for Japanese
+        // root        ::= jp-char+ ([ \t\n] jp-char+)*
+        // jp-char     ::= hiragana | katakana | punctuation | cjk
+        // hiragana    ::= [ぁ-ゟ]
+        // katakana    ::= [ァ-ヿ]
+        // punctuation ::= [、-〾]
+        // cjk         ::= [一-鿿]
+
+        let g = Grammar {
+            items: vec![
+                GrammarItem::Comment(" A probably incorrect grammar for Japanese".to_string()),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "root".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![
+                            ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: "jp-char".to_string(),
+                                },
+                                RepetitionType::OneOrMore,
+                            ),
+                            ProductionItem::Group(
+                                Box::new(Production {
+                                    items: vec![
+                                        ProductionItem::CharacterSet(
+                                            CharacterSet {
+                                                items: vec![
+                                                    CharacterSetItem::Character(' '),
+                                                    CharacterSetItem::Character('\t'),
+                                                    CharacterSetItem::Character('\n'),
+                                                ],
+                                            },
+                                            RepetitionType::One,
+                                        ),
+                                        ProductionItem::NonTerminal(
+                                            NonTerminalSymbol {
+                                                name: "jp-char".to_string(),
+                                            },
+                                            RepetitionType::OneOrMore,
+                                        ),
+                                    ],
+                                }),
+                                RepetitionType::ZeroOrMore,
+                            ),
+                        ],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "jp-char".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::OneOf(vec![
+                            Production {
+                                items: vec![ProductionItem::NonTerminal(
+                                    NonTerminalSymbol {
+                                        name: "hiragana".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                )],
+                            },
+                            Production {
+                                items: vec![ProductionItem::NonTerminal(
+                                    NonTerminalSymbol {
+                                        name: "katakana".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                )],
+                            },
+                            Production {
+                                items: vec![ProductionItem::NonTerminal(
+                                    NonTerminalSymbol {
+                                        name: "punctuation".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                )],
+                            },
+                            Production {
+                                items: vec![ProductionItem::NonTerminal(
+                                    NonTerminalSymbol {
+                                        name: "cjk".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                )],
+                            },
+                        ])],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "hiragana".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::CharacterSet(
+                            CharacterSet {
+                                items: vec![CharacterSetItem::CharacterRange('ぁ', 'ゟ')],
+                            },
+                            RepetitionType::One,
+                        )],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "katakana".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::CharacterSet(
+                            CharacterSet {
+                                items: vec![CharacterSetItem::CharacterRange('ァ', 'ヿ')],
+                            },
+                            RepetitionType::One,
+                        )],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "punctuation".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::CharacterSet(
+                            CharacterSet {
+                                items: vec![CharacterSetItem::CharacterRange('、', '〾')],
+                            },
+                            RepetitionType::One,
+                        )],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "cjk".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::CharacterSet(
+                            CharacterSet {
+                                items: vec![CharacterSetItem::CharacterRange('一', '鿿')],
+                            },
+                            RepetitionType::One,
+                        )],
+                    },
+                }),
+            ],
+        };
+        let s = g.to_string();
+        assert_eq!(
+            s,
+            "# A probably incorrect grammar for Japanese\nroot ::= jp-char+ ([ \t\n] jp-char+)*\njp-char ::= hiragana | katakana | punctuation | cjk\nhiragana ::= [ぁ-ゟ]\nkatakana ::= [ァ-ヿ]\npunctuation ::= [、-〾]\ncjk ::= [一-鿿]\n"
         );
     }
 }
