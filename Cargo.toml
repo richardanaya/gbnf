@@ -9,3 +9,4 @@ license = "MIT"
 
 [dependencies]
 nom = "7.1.3"
+pretty_assertions = "1.4.0"

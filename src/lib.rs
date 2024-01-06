@@ -144,7 +144,7 @@ impl Display for Production {
                     s.push_str(&format!("#{}\n", comment));
                 }
                 ProductionItem::Terminal(terminal, rep) => {
-                    s.push_str(&format!("\"{}{}\"", terminal.value, rep));
+                    s.push_str(&format!("\"{}\"{}", terminal.value, rep));
                 }
                 ProductionItem::NonTerminal(non_terminal, rep) => {
                     s.push_str(format!("{}{}", &non_terminal.name.to_string(), rep).as_str());
@@ -749,5 +749,228 @@ mod tests {
             s,
             "root ::= (expr \"=\" ws term \"\\n\")+\nexpr ::= term ([-+*/] term)*\nterm ::= ident | num | \"(\" ws expr \")\" ws\nident ::= [a-z] [a-z0-9_]* ws\nnum ::= [0-9]+ ws\nws ::= [ \\t\\n]*\n"
         );
+    }
+
+    #[test]
+    fn chess() {
+        // # Specifies chess moves as a list in algebraic notation, using PGN conventions
+        // # Force first move to "1. ", then any 1-2 digit number after, relying on model to follow the pattern
+        // root    ::= "1. " move " " move "\n" ([1-9] [0-9]? ". " move " " move "\n")+
+        // move    ::= (pawn | nonpawn | castle) [+#]?
+        // # piece type, optional file/rank, optional capture, dest file & rank
+        // nonpawn ::= [NBKQR] [a-h]? [1-8]? "x"? [a-h] [1-8]
+        // # optional file & capture, dest file & rank, optional promotion
+        // pawn    ::= ([a-h] "x")? [a-h] [1-8] ("=" [NBKQR])?
+        // castle  ::= "O-O" "-O"?
+
+        let g = Grammar{
+            items: vec![
+                GrammarItem::Comment(" Specifies chess moves as a list in algebraic notation, using PGN conventions".to_string()),
+                GrammarItem::Comment(" Force first move to \"1. \", then any 1-2 digit number after, relying on model to follow the pattern".to_string()),
+                GrammarItem::Rule(Rule{
+                    lhs: NonTerminalSymbol{
+                        name: "root".to_string(),
+                    },
+                    rhs: Production{
+                        items: vec![
+                            ProductionItem::Terminal(TerminalSymbol{
+                                value: "1. ".to_string(),
+                            }, RepetitionType::One),
+                            ProductionItem::NonTerminal(NonTerminalSymbol{
+                                name: "move".to_string(),
+                            }, RepetitionType::One),
+                            ProductionItem::Terminal(TerminalSymbol{
+                                value: " ".to_string(),
+                            }, RepetitionType::One),
+                            ProductionItem::NonTerminal(NonTerminalSymbol{
+                                name: "move".to_string(),
+                            }, RepetitionType::One),
+                            ProductionItem::Terminal(TerminalSymbol{
+                                value: "\\n".to_string(),
+                            }, RepetitionType::One),
+                            ProductionItem::Group(Box::new(Production{
+                                items: vec![
+                                    ProductionItem::CharacterSet(CharacterSet{
+                                        items: vec![
+                                            CharacterSetItem::CharacterRange('1', '9'),
+                                        ],
+                                    }, RepetitionType::One),
+                                    ProductionItem::CharacterSet(CharacterSet{
+                                        items: vec![
+                                            CharacterSetItem::CharacterRange('0', '9'),
+                                        ],
+                                    }, RepetitionType::ZeroOrOne),
+                                    ProductionItem::Terminal(TerminalSymbol{
+                                        value: ". ".to_string(),
+                                    }, RepetitionType::One),
+                                    ProductionItem::NonTerminal(NonTerminalSymbol{
+                                        name: "move".to_string(),
+                                    }, RepetitionType::One),
+                                    ProductionItem::Terminal(TerminalSymbol{
+                                        value: " ".to_string(),
+                                    }, RepetitionType::One),
+                                    ProductionItem::NonTerminal(NonTerminalSymbol{
+                                        name: "move".to_string(),
+                                    }, RepetitionType::One),
+                                    ProductionItem::Terminal(TerminalSymbol{
+                                        value: "\\n".to_string(),
+                                    }, RepetitionType::One),
+                                ],
+                            }), RepetitionType::OneOrMore),
+                        ],
+                    },
+                }),
+                GrammarItem::Rule(Rule{
+                    lhs: NonTerminalSymbol{
+                        name: "move".to_string(),
+                    },
+                    rhs: Production{
+                        items: vec![
+                            ProductionItem::Group(Box::new(Production{
+                                items: vec![
+                                    ProductionItem::OneOf(vec![
+                                        Production{
+                                            items: vec![
+                                                ProductionItem::NonTerminal(NonTerminalSymbol{
+                                                    name: "pawn".to_string(),
+                                                }, RepetitionType::One),
+                                            ],
+                                        },
+                                        Production{
+                                            items: vec![
+                                                ProductionItem::NonTerminal(NonTerminalSymbol{
+                                                    name: "nonpawn".to_string(),
+                                                }, RepetitionType::One),
+                                            ],
+                                        },
+                                        Production{
+                                            items: vec![
+                                                ProductionItem::NonTerminal(NonTerminalSymbol{
+                                                    name: "castle".to_string(),
+                                                }, RepetitionType::One),
+                                            ],
+                                        },
+                                    ]),
+                                ],
+                            }), RepetitionType::One),
+                            ProductionItem::CharacterSet(CharacterSet{
+                                items: vec![
+                                    CharacterSetItem::Character('+'),
+                                    CharacterSetItem::Character('#'),
+                                ],
+                            }, RepetitionType::ZeroOrOne),
+                        ],
+                    },
+                }),
+                GrammarItem::Comment(" piece type, optional file/rank, optional capture, dest file & rank".to_string()),
+                GrammarItem::Rule(Rule{
+                    lhs: NonTerminalSymbol{
+                        name: "nonpawn".to_string(),
+                    },
+                    rhs: Production{
+                        items: vec![
+                            ProductionItem::CharacterSet(CharacterSet{
+                                items: vec![
+                                    CharacterSetItem::Character('N'),
+                                    CharacterSetItem::Character('B'),
+                                    CharacterSetItem::Character('K'),
+                                    CharacterSetItem::Character('Q'),
+                                    CharacterSetItem::Character('R'),
+                                ],
+                            }, RepetitionType::One),
+                            ProductionItem::CharacterSet(CharacterSet{
+                                items: vec![
+                                    CharacterSetItem::CharacterRange('a', 'h'),
+                                ],
+                            }, RepetitionType::ZeroOrOne),
+                            ProductionItem::CharacterSet(CharacterSet{
+                                items: vec![
+                                    CharacterSetItem::CharacterRange('1', '8'),
+                                ],
+                            }, RepetitionType::ZeroOrOne),
+                            ProductionItem::Terminal(TerminalSymbol{
+                                value: "x".to_string(),
+                            }, RepetitionType::ZeroOrOne),
+                            ProductionItem::CharacterSet(CharacterSet{
+                                items: vec![
+                                    CharacterSetItem::CharacterRange('a', 'h'),
+                                ],
+                            }, RepetitionType::One),
+                            ProductionItem::CharacterSet(CharacterSet{
+                                items: vec![
+                                    CharacterSetItem::CharacterRange('1', '8'),
+                                ],
+                            }, RepetitionType::One),
+                        ],
+                    },
+                }),
+                GrammarItem::Comment(" optional file & capture, dest file & rank, optional promotion".to_string()),
+                GrammarItem::Rule(Rule{
+                    lhs: NonTerminalSymbol{
+                        name: "pawn".to_string(),
+                    },
+                    rhs: Production{
+                        items: vec![
+                            ProductionItem::Group(Box::new(Production{
+                                items: vec![
+                                    ProductionItem::CharacterSet(CharacterSet{
+                                        items: vec![
+                                            CharacterSetItem::CharacterRange('a', 'h'),
+                                        ],
+                                    }, RepetitionType::One),
+                                    ProductionItem::Terminal(TerminalSymbol{
+                                        value: "x".to_string(),
+                                    }, RepetitionType::One),
+                                ],
+                            }), RepetitionType::ZeroOrOne),
+                            ProductionItem::CharacterSet(CharacterSet{
+                                items: vec![
+                                    CharacterSetItem::CharacterRange('a', 'h'),
+                                ],
+                            }, RepetitionType::One),
+                            ProductionItem::CharacterSet(CharacterSet{
+                                items: vec![
+                                    CharacterSetItem::CharacterRange('1', '8'),
+                                ],
+                            }, RepetitionType::One),
+                        
+                            ProductionItem::Group(Box::new(Production{
+                                items: vec![
+                                    ProductionItem::Terminal(TerminalSymbol{
+                                        value: "=".to_string(),
+                                    }, RepetitionType::One),
+                                    ProductionItem::CharacterSet(CharacterSet{
+                                        items: vec![
+                                            CharacterSetItem::Character('N'),
+                                            CharacterSetItem::Character('B'),
+                                            CharacterSetItem::Character('K'),
+                                            CharacterSetItem::Character('Q'),
+                                            CharacterSetItem::Character('R'),
+                                        ],
+                                    }, RepetitionType::One),
+                                ],
+                            }), RepetitionType::ZeroOrOne),
+                        ],
+                    },
+                }),
+                GrammarItem::Rule(Rule{
+                    lhs: NonTerminalSymbol{
+                        name: "castle".to_string(),
+                    },
+                    rhs: Production{
+                        items: vec![
+                            ProductionItem::Terminal(TerminalSymbol{
+                                value: "O-O".to_string(),
+                            }, RepetitionType::One),
+                            ProductionItem::Terminal(TerminalSymbol{
+                                value: "-O".to_string(),
+                            }, RepetitionType::ZeroOrOne),
+                        ],
+                    },
+                }),
+            ],
+        };
+        let s = g.to_string();
+        pretty_assertions::assert_eq!(s, "# Specifies chess moves as a list in algebraic notation, using PGN conventions\n# Force first move to \"1. \", then any 1-2 digit number after, relying on model to follow the pattern\nroot ::= \"1. \" move \" \" move \"\\n\" ([1-9] [0-9]? \". \" move \" \" move \"\\n\")+\nmove ::= (pawn | nonpawn | castle) [+#]?\n# piece type, optional file/rank, optional capture, dest file & rank\nnonpawn ::= [NBKQR] [a-h]? [1-8]? \"x\"? [a-h] [1-8]\n# optional file & capture, dest file & rank, optional promotion\npawn ::= ([a-h] \"x\")? [a-h] [1-8] (\"=\" [NBKQR])?\ncastle ::= \"O-O\" \"-O\"?\n");
     }
 }
