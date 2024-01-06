@@ -43,6 +43,7 @@ pub enum CharacterSetItem {
     Hex(String),
     Unicode(String),
     Return,
+    Backslash,
 }
 
 #[derive(Clone, Debug)]
@@ -50,7 +51,6 @@ pub struct CharacterSet {
     pub is_complement: bool,
     pub items: Vec<CharacterSetItem>,
 }
-
 
 #[derive(Clone, Debug)]
 pub struct ComplementCharacterSet {
@@ -132,6 +132,9 @@ impl Display for CharacterSet {
                 }
                 CharacterSetItem::Return => {
                     s.push_str("\\r");
+                }
+                CharacterSetItem::Backslash => {
+                    s.push_str("\\\\");
                 }
             }
         }
@@ -978,7 +981,6 @@ mod tests {
                                     CharacterSetItem::CharacterRange('1', '8'),
                                 ],
                             }, RepetitionType::One),
-                        
                             ProductionItem::Group(Box::new(Production{
                                 items: vec![
                                     ProductionItem::Terminal(TerminalSymbol{
@@ -1021,50 +1023,60 @@ mod tests {
     }
 
     #[test]
-    fn list(){
+    fn list() {
         // root ::= item+
         // # Excludes various line break characters
         // item ::= "- " [^\r\n\x0b\x0c\x85\u2028\u2029]+ "\n"
 
-        let g = Grammar{
+        let g = Grammar {
             items: vec![
-                GrammarItem::Rule(Rule{
-                    lhs: NonTerminalSymbol{
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
                         name: "root".to_string(),
                     },
-                    rhs: Production{
-                        items: vec![
-                            ProductionItem::NonTerminal(NonTerminalSymbol{
+                    rhs: Production {
+                        items: vec![ProductionItem::NonTerminal(
+                            NonTerminalSymbol {
                                 name: "item".to_string(),
-                            }, RepetitionType::OneOrMore),
-                        ],
+                            },
+                            RepetitionType::OneOrMore,
+                        )],
                     },
                 }),
                 GrammarItem::Comment(" Excludes various line break characters".to_string()),
-                GrammarItem::Rule(Rule{
-                    lhs: NonTerminalSymbol{
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
                         name: "item".to_string(),
                     },
-                    rhs: Production{
+                    rhs: Production {
                         items: vec![
-                            ProductionItem::Terminal(TerminalSymbol{
-                                value: "- ".to_string(),
-                            }, RepetitionType::One),
-                            ProductionItem::CharacterSet(CharacterSet{
-                                is_complement: true,
-                                items: vec![
-                                    CharacterSetItem::Return,
-                                    CharacterSetItem::NewLine,
-                                    CharacterSetItem::Hex("0b".to_string()),
-                                    CharacterSetItem::Hex("0c".to_string()),
-                                    CharacterSetItem::Hex("85".to_string()),
-                                    CharacterSetItem::Unicode("2028".to_string()),
-                                    CharacterSetItem::Unicode("2029".to_string()),
-                                ],
-                            }, RepetitionType::OneOrMore),
-                            ProductionItem::Terminal(TerminalSymbol{
-                                value: "\\n".to_string(),
-                            }, RepetitionType::One),
+                            ProductionItem::Terminal(
+                                TerminalSymbol {
+                                    value: "- ".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::CharacterSet(
+                                CharacterSet {
+                                    is_complement: true,
+                                    items: vec![
+                                        CharacterSetItem::Return,
+                                        CharacterSetItem::NewLine,
+                                        CharacterSetItem::Hex("0b".to_string()),
+                                        CharacterSetItem::Hex("0c".to_string()),
+                                        CharacterSetItem::Hex("85".to_string()),
+                                        CharacterSetItem::Unicode("2028".to_string()),
+                                        CharacterSetItem::Unicode("2029".to_string()),
+                                    ],
+                                },
+                                RepetitionType::OneOrMore,
+                            ),
+                            ProductionItem::Terminal(
+                                TerminalSymbol {
+                                    value: "\\n".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
                         ],
                     },
                 }),
@@ -1073,6 +1085,621 @@ mod tests {
 
         let s = g.to_string();
         pretty_assertions::assert_eq!(s, "root ::= item+\n# Excludes various line break characters\nitem ::= \"- \" [^\\r\\n\\x0b\\x0c\\x85\\u2028\\u2029]+ \"\\n\"\n");
+    }
 
+    #[test]
+    fn json() {
+        // root   ::= object
+        // value  ::= object | array | string | number | ("true" | "false" | "null") ws
+        // object ::=
+        //  "{" ws (
+        //            string ":" ws value
+        //    ("," ws string ":" ws value)*
+        //  )? "}" ws
+        //array  ::=
+        //  "[" ws (
+        //            value
+        //    ("," ws value)*
+        //  )? "]" ws
+        //string ::=
+        //  "\"" (
+        //    [^"\\] |
+        //    "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]) # escapes
+        //  )* "\"" ws
+        //number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+        //# Optional space: by convention, applied in this grammar after literal chars when allowed
+        //ws ::= ([ \t\n] ws)?
+
+        let g = Grammar {
+            items: vec![
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "root".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::NonTerminal(
+                            NonTerminalSymbol {
+                                name: "object".to_string(),
+                            },
+                            RepetitionType::One,
+                        )],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "value".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![
+                            ProductionItem::OneOf(vec![
+                                Production {
+                                    items: vec![ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "object".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    )],
+                                },
+                                Production {
+                                    items: vec![ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "array".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    )],
+                                },
+                                Production {
+                                    items: vec![ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "string".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    )],
+                                },
+                                Production {
+                                    items: vec![ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "number".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    )],
+                                },
+                                Production {
+                                    items: vec![ProductionItem::Group(
+                                        Box::new(Production {
+                                            items: vec![ProductionItem::OneOf(vec![
+                                                Production {
+                                                    items: vec![ProductionItem::Terminal(
+                                                        TerminalSymbol {
+                                                            value: "true".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    )],
+                                                },
+                                                Production {
+                                                    items: vec![ProductionItem::Terminal(
+                                                        TerminalSymbol {
+                                                            value: "false".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    )],
+                                                },
+                                                Production {
+                                                    items: vec![ProductionItem::Terminal(
+                                                        TerminalSymbol {
+                                                            value: "null".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    )],
+                                                },
+                                            ])],
+                                        }),
+                                        RepetitionType::One,
+                                    )],
+                                },
+                            ]),
+                            ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: "ws".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                        ],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "object".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![
+                            ProductionItem::Terminal(
+                                TerminalSymbol {
+                                    value: "{".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: "ws".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::Group(
+                                Box::new(Production {
+                                    items: vec![
+                                        ProductionItem::NonTerminal(
+                                            NonTerminalSymbol {
+                                                name: "string".to_string(),
+                                            },
+                                            RepetitionType::One,
+                                        ),
+                                        ProductionItem::Terminal(
+                                            TerminalSymbol {
+                                                value: ":".to_string(),
+                                            },
+                                            RepetitionType::One,
+                                        ),
+                                        ProductionItem::NonTerminal(
+                                            NonTerminalSymbol {
+                                                name: "ws".to_string(),
+                                            },
+                                            RepetitionType::One,
+                                        ),
+                                        ProductionItem::NonTerminal(
+                                            NonTerminalSymbol {
+                                                name: "value".to_string(),
+                                            },
+                                            RepetitionType::One,
+                                        ),
+                                        ProductionItem::Group(
+                                            Box::new(Production {
+                                                items: vec![
+                                                    ProductionItem::Terminal(
+                                                        TerminalSymbol {
+                                                            value: ",".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    ),
+                                                    ProductionItem::NonTerminal(
+                                                        NonTerminalSymbol {
+                                                            name: "ws".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    ),
+                                                    ProductionItem::NonTerminal(
+                                                        NonTerminalSymbol {
+                                                            name: "string".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    ),
+                                                    ProductionItem::Terminal(
+                                                        TerminalSymbol {
+                                                            value: ":".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    ),
+                                                    ProductionItem::NonTerminal(
+                                                        NonTerminalSymbol {
+                                                            name: "ws".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    ),
+                                                    ProductionItem::NonTerminal(
+                                                        NonTerminalSymbol {
+                                                            name: "value".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    ),
+                                                ],
+                                            }),
+                                            RepetitionType::ZeroOrMore,
+                                        ),
+                                    ],
+                                }),
+                                RepetitionType::ZeroOrOne,
+                            ),
+                            ProductionItem::Terminal(
+                                TerminalSymbol {
+                                    value: "}".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: "ws".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                        ],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "array".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![
+                            ProductionItem::Terminal(
+                                TerminalSymbol {
+                                    value: "[".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: "ws".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::Group(
+                                Box::new(Production {
+                                    items: vec![
+                                        ProductionItem::NonTerminal(
+                                            NonTerminalSymbol {
+                                                name: "value".to_string(),
+                                            },
+                                            RepetitionType::One,
+                                        ),
+                                        ProductionItem::Group(
+                                            Box::new(Production {
+                                                items: vec![
+                                                    ProductionItem::Terminal(
+                                                        TerminalSymbol {
+                                                            value: ",".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    ),
+                                                    ProductionItem::NonTerminal(
+                                                        NonTerminalSymbol {
+                                                            name: "ws".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    ),
+                                                    ProductionItem::NonTerminal(
+                                                        NonTerminalSymbol {
+                                                            name: "value".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    ),
+                                                ],
+                                            }),
+                                            RepetitionType::ZeroOrMore,
+                                        ),
+                                    ],
+                                }),
+                                RepetitionType::ZeroOrOne,
+                            ),
+                            ProductionItem::Terminal(
+                                TerminalSymbol {
+                                    value: "]".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: "ws".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                        ],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "string".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![
+                            ProductionItem::Terminal(
+                                TerminalSymbol {
+                                    value: r#"\""#.to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::Group(
+                                Box::new(Production {
+                                    items: vec![
+                                        ProductionItem::OneOf(vec![
+                                            Production {
+                                                items: vec![
+                                                    ProductionItem::CharacterSet(
+                                                        CharacterSet {
+                                                            is_complement: true,
+                                                            items: vec![
+                                                                CharacterSetItem::Character('"'),
+                                                                CharacterSetItem::Backslash,
+                                                            ],
+                                                        },
+                                                        RepetitionType::One,
+                                                    )
+                                                ],
+                                            },
+                                            Production {
+                                                items: vec![
+                                                    ProductionItem::Terminal(
+                                                        TerminalSymbol {
+                                                            value: r#"\\"#.to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    ),
+                                                ],
+                                            },
+                                        ]),
+                                        ProductionItem::Group(Box::new(Production{
+                                            items: vec![
+                                                ProductionItem::OneOf(
+                                                    vec![
+                                                        Production {
+                                                            items: vec![
+                                                                ProductionItem::CharacterSet(
+                                                                    CharacterSet {
+                                                                        is_complement: false,
+                                                                        items: vec![
+                                                                            CharacterSetItem::Character('"'),
+                                                                            CharacterSetItem::Backslash,
+                                                                            CharacterSetItem::Character('/'),
+                                                                            CharacterSetItem::Character('b'),
+                                                                            CharacterSetItem::Character('f'),
+                                                                            CharacterSetItem::Character('n'),
+                                                                            CharacterSetItem::Character('r'),
+                                                                            CharacterSetItem::Character('t'),
+                                                                        ],
+                                                                    },
+                                                                    RepetitionType::One,
+                                                                )
+                                                            ]
+                                                        },
+                                                        Production {
+                                                            items: vec![
+                                                                ProductionItem::Terminal(
+                                                                    TerminalSymbol {
+                                                                        value: "u".to_string(),
+                                                                    },
+                                                                    RepetitionType::One,
+                                                                ),
+                                                            ]
+                                                        },
+                                                    ]
+                                                ),
+                                                ProductionItem::CharacterSet(
+                                                    CharacterSet {
+                                                        is_complement: false,
+                                                        items: vec![
+                                                            CharacterSetItem::CharacterRange('0', '9'),
+                                                            CharacterSetItem::CharacterRange('a', 'f'),
+                                                            CharacterSetItem::CharacterRange('A', 'F'),
+                                                        ],
+                                                    },
+                                                    RepetitionType::One,
+                                                ),
+                                                ProductionItem::CharacterSet(
+                                                    CharacterSet {
+                                                        is_complement: false,
+                                                        items: vec![
+                                                            CharacterSetItem::CharacterRange('0', '9'),
+                                                            CharacterSetItem::CharacterRange('a', 'f'),
+                                                            CharacterSetItem::CharacterRange('A', 'F'),
+                                                        ],
+                                                    },
+                                                    RepetitionType::One,
+                                                ),
+                                                ProductionItem::CharacterSet(
+                                                    CharacterSet {
+                                                        is_complement: false,
+                                                        items: vec![
+                                                            CharacterSetItem::CharacterRange('0', '9'),
+                                                            CharacterSetItem::CharacterRange('a', 'f'),
+                                                            CharacterSetItem::CharacterRange('A', 'F'),
+                                                        ],
+                                                    },
+                                                    RepetitionType::One,
+                                                ),
+                                                ProductionItem::CharacterSet(
+                                                    CharacterSet {
+                                                        is_complement: false,
+                                                        items: vec![
+                                                            CharacterSetItem::CharacterRange('0', '9'),
+                                                            CharacterSetItem::CharacterRange('a', 'f'),
+                                                            CharacterSetItem::CharacterRange('A', 'F'),
+                                                        ],
+                                                    },
+                                                    RepetitionType::One,
+                                                ),
+                                            ]
+                                        }), RepetitionType::One),
+                                        
+                                    ],
+                                }),
+                                RepetitionType::ZeroOrMore,
+                            ),
+                            ProductionItem::Terminal(
+                                TerminalSymbol {
+                                    value: r#"\""#.to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: "ws".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                        ],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "number".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![
+                            ProductionItem::Group(
+                                Box::new(Production {
+                                    items: vec![
+                                        ProductionItem::Terminal(
+                                            TerminalSymbol {
+                                                value: "-".to_string(),
+                                            },
+                                            RepetitionType::ZeroOrOne,
+                                        ),
+                                        ProductionItem::Group(
+                                            Box::new(Production {
+                                                items: vec![
+                                                    ProductionItem::OneOf(vec![
+                                                        Production {
+                                                            items: vec![ProductionItem::CharacterSet(
+                                                                CharacterSet {
+                                                                    is_complement: false,
+                                                                    items: vec![
+                                                                        CharacterSetItem::CharacterRange(
+                                                                            '0', '9',
+                                                                        ),
+                                                                    ],
+                                                                },
+                                                                RepetitionType::One,
+                                                            )],
+                                                        },
+                                                        Production {
+                                                            items: vec![
+                                                                ProductionItem::CharacterSet(
+                                                                    CharacterSet {
+                                                                        is_complement: false,
+                                                                        items: vec![
+                                                                            CharacterSetItem::CharacterRange(
+                                                                                '1', '9',
+                                                                            ),
+                                                                        ],
+                                                                    },
+                                                                    RepetitionType::One,
+                                                                ),
+                                                                ProductionItem::CharacterSet(
+                                                                    CharacterSet {
+                                                                        is_complement: false,
+                                                                        items: vec![
+                                                                            CharacterSetItem::CharacterRange(
+                                                                                '0', '9',
+                                                                            ),
+                                                                        ],
+                                                                    },
+                                                                    RepetitionType::ZeroOrMore,
+                                                                ),
+                                                            ],
+                                                        },
+                                                    ]),
+                                                ],
+                                            }),
+                                            RepetitionType::One,
+                                        ),
+                                    ],
+                                }),
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::Group(
+                                Box::new(Production {
+                                    items: vec![
+                                        ProductionItem::Terminal(
+                                            TerminalSymbol {
+                                                value: ".".to_string(),
+                                            },
+                                            RepetitionType::One,
+                                        ),
+                                        ProductionItem::CharacterSet(
+                                            CharacterSet {
+                                                is_complement: false,
+                                                items: vec![CharacterSetItem::CharacterRange(
+                                                    '0', '9',
+                                                )],
+                                            },
+                                            RepetitionType::OneOrMore,
+                                        ),
+                                    ],
+                                }),
+                                RepetitionType::ZeroOrOne,
+                            ),
+                            ProductionItem::Group(
+                                Box::new(Production {
+                                    items: vec![
+                                        ProductionItem::CharacterSet(
+                                            CharacterSet {
+                                                is_complement: false,
+                                                items: vec![
+                                                    CharacterSetItem::Character('e'),
+                                                    CharacterSetItem::Character('E'),
+                                                ],
+                                            },
+                                            RepetitionType::One,
+                                        ),
+                                        ProductionItem::CharacterSet(
+                                            CharacterSet {
+                                                is_complement: false,
+                                                items: vec![
+                                                    CharacterSetItem::Character('-'),
+                                                    CharacterSetItem::Character('+'),
+                                                ],
+                                            },
+                                            RepetitionType::ZeroOrOne,
+                                        ),
+                                        ProductionItem::CharacterSet(
+                                            CharacterSet {
+                                                is_complement: false,
+                                                items: vec![
+                                                    CharacterSetItem::CharacterRange(
+                                                        '0', '9',
+                                                    ),
+                                                ],
+                                            },
+                                            RepetitionType::OneOrMore,
+                                        ),
+                                    ],
+                                }),
+                                RepetitionType::ZeroOrOne,
+                            ),
+                            ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: "ws".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                        ],
+                    },
+                }),
+                GrammarItem::Comment(" Optional space: by convention, applied in this grammar after literal chars when allowed".to_string()),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "ws".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::Group(
+                            Box::new(Production {
+                                items: vec![
+                                    ProductionItem::CharacterSet(
+                                        CharacterSet {
+                                            is_complement: false,
+                                            items: vec![
+                                                CharacterSetItem::Character(' '),
+                                                CharacterSetItem::Tab,
+                                                CharacterSetItem::NewLine,
+                                            ],
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                    ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "ws".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                ],
+                            }),
+                            RepetitionType::ZeroOrOne,
+                        )],
+                    },
+                }),
+            ],
+        };
+
+        let s = g.to_string();
+        pretty_assertions::assert_eq!(s, "root ::= object\nvalue ::= object | array | string | number | (\"true\" | \"false\" | \"null\") ws\nobject ::= \"{\" ws (string \":\" ws value (\",\" ws string \":\" ws value)*)? \"}\" ws\narray ::= \"[\" ws (value (\",\" ws value)*)? \"]\" ws\nstring ::= \"\\\"\" ([^\"\\\\] | \"\\\\\" ([\"\\\\/bfnrt] | \"u\" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* \"\\\"\" ws\nnumber ::= (\"-\"? ([0-9] | [1-9] [0-9]*)) (\".\" [0-9]+)? ([eE] [-+]? [0-9]+)? ws\n# Optional space: by convention, applied in this grammar after literal chars when allowed\nws ::= ([ \\t\\n] ws)?\n");
     }
 }
