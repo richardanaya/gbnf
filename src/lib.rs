@@ -249,7 +249,7 @@ mod tests {
             })],
         };
         let s = g.to_string();
-        assert_eq!(s, "root ::= \"yes\" | \"no\"\n");
+        pretty_assertions::assert_eq!(s, "root ::= \"yes\" | \"no\"\n");
     }
 
     #[test]
@@ -302,7 +302,7 @@ mod tests {
             ],
         };
         let s = g.to_string();
-        assert_eq!(
+        pretty_assertions::assert_eq!(
             s,
             "# This is a comment\nroot ::= answers\nanswers ::= \"yes\" | \"no\"\n"
         );
@@ -388,7 +388,7 @@ mod tests {
             ],
         };
         let s = g.to_string();
-        assert_eq!(
+        pretty_assertions::assert_eq!(
             s,
             "# A probably incorrect grammar for japanese word\nroot ::= jp-char+\njp-char ::= hiragana | katakana\nhiragana ::= [ぁ-ゟ]\nkatakana ::= [ァ-ヿ]\n"
         );
@@ -546,7 +546,7 @@ mod tests {
             ],
         };
         let s = g.to_string();
-        assert_eq!(
+        pretty_assertions::assert_eq!(
             s,
             "# A probably incorrect grammar for Japanese\nroot ::= jp-char+ ([ \t\n] jp-char+)*\njp-char ::= hiragana | katakana | punctuation | cjk\nhiragana ::= [ぁ-ゟ]\nkatakana ::= [ァ-ヿ]\npunctuation ::= [、-〾]\ncjk ::= [一-鿿]\n"
         );
@@ -782,7 +782,7 @@ mod tests {
             ],
         };
         let s = g.to_string();
-        assert_eq!(
+        pretty_assertions::assert_eq!(
             s,
             "root ::= (expr \"=\" ws term \"\\n\")+\nexpr ::= term ([-+*/] term)*\nterm ::= ident | num | \"(\" ws expr \")\" ws\nident ::= [a-z] [a-z0-9_]* ws\nnum ::= [0-9]+ ws\nws ::= [ \\t\\n]*\n"
         );
@@ -1508,7 +1508,6 @@ mod tests {
                                                 ),
                                             ]
                                         }), RepetitionType::One),
-                                        
                                     ],
                                 }),
                                 RepetitionType::ZeroOrMore,
