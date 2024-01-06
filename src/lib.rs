@@ -37,6 +37,8 @@ pub enum RepetitionType {
 #[derive(Clone, Debug)]
 pub enum CharacterSetItem {
     Character(char),
+    Tab,
+    NewLine,
     CharacterRange(char, char),
 }
 
@@ -102,6 +104,12 @@ impl Display for CharacterSet {
                     s.push(*start);
                     s.push('-');
                     s.push(*end);
+                }
+                CharacterSetItem::Tab => {
+                    s.push_str("\\t");
+                }
+                CharacterSetItem::NewLine => {
+                    s.push_str("\\n");
                 }
             }
         }
@@ -360,7 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn simple_3() {
+    fn japanese() {
         // # A probably incorrect grammar for Japanese
         // root        ::= jp-char+ ([ \t\n] jp-char+)*
         // jp-char     ::= hiragana | katakana | punctuation | cjk
@@ -509,6 +517,237 @@ mod tests {
         assert_eq!(
             s,
             "# A probably incorrect grammar for Japanese\nroot ::= jp-char+ ([ \t\n] jp-char+)*\njp-char ::= hiragana | katakana | punctuation | cjk\nhiragana ::= [ぁ-ゟ]\nkatakana ::= [ァ-ヿ]\npunctuation ::= [、-〾]\ncjk ::= [一-鿿]\n"
+        );
+    }
+
+    #[test]
+    fn arithmatic() {
+        // root  ::= (expr "=" ws term "\n")+
+        // expr  ::= term ([-+*/] term)*
+        // term  ::= ident | num | "(" ws expr ")" ws
+        // ident ::= [a-z] [a-z0-9_]* ws
+        // num   ::= [0-9]+ ws
+        // ws    ::= [ \t\n]*
+
+        let g = Grammar {
+            items: vec![
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "root".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::Group(
+                            Box::new(Production {
+                                items: vec![
+                                    ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "expr".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                    ProductionItem::Terminal(
+                                        TerminalSymbol {
+                                            value: "=".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                    ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "ws".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                    ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "term".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                    ProductionItem::Terminal(
+                                        TerminalSymbol {
+                                            value: "\\n".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                ],
+                            }),
+                            RepetitionType::OneOrMore,
+                        )],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "expr".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![
+                            ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: "term".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::Group(
+                                Box::new(Production {
+                                    items: vec![
+                                        ProductionItem::CharacterSet(
+                                            CharacterSet {
+                                                items: vec![
+                                                    CharacterSetItem::Character('-'),
+                                                    CharacterSetItem::Character('+'),
+                                                    CharacterSetItem::Character('*'),
+                                                    CharacterSetItem::Character('/'),
+                                                ],
+                                            },
+                                            RepetitionType::One,
+                                        ),
+                                        ProductionItem::NonTerminal(
+                                            NonTerminalSymbol {
+                                                name: "term".to_string(),
+                                            },
+                                            RepetitionType::One,
+                                        ),
+                                    ],
+                                }),
+                                RepetitionType::ZeroOrMore,
+                            ),
+                        ],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "term".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::OneOf(vec![
+                            Production {
+                                items: vec![ProductionItem::NonTerminal(
+                                    NonTerminalSymbol {
+                                        name: "ident".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                )],
+                            },
+                            Production {
+                                items: vec![ProductionItem::NonTerminal(
+                                    NonTerminalSymbol {
+                                        name: "num".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                )],
+                            },
+                            Production {
+                                items: vec![
+                                    ProductionItem::Terminal(
+                                        TerminalSymbol {
+                                            value: "(".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                    ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "ws".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                    ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "expr".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                    ProductionItem::Terminal(
+                                        TerminalSymbol {
+                                            value: ")".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                    ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "ws".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                ],
+                            },
+                        ])],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "ident".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![
+                            ProductionItem::CharacterSet(
+                                CharacterSet {
+                                    items: vec![CharacterSetItem::CharacterRange('a', 'z')],
+                                },
+                                RepetitionType::One,
+                            ),
+                            ProductionItem::CharacterSet(
+                                CharacterSet {
+                                    items: vec![
+                                        CharacterSetItem::CharacterRange('a', 'z'),
+                                        CharacterSetItem::CharacterRange('0', '9'),
+                                        CharacterSetItem::Character('_'),
+                                    ],
+                                },
+                                RepetitionType::ZeroOrMore,
+                            ),
+                            ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: "ws".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                        ],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "num".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![
+                            ProductionItem::CharacterSet(
+                                CharacterSet {
+                                    items: vec![CharacterSetItem::CharacterRange('0', '9')],
+                                },
+                                RepetitionType::OneOrMore,
+                            ),
+                            ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: "ws".to_string(),
+                                },
+                                RepetitionType::One,
+                            ),
+                        ],
+                    },
+                }),
+                GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol {
+                        name: "ws".to_string(),
+                    },
+                    rhs: Production {
+                        items: vec![ProductionItem::CharacterSet(
+                            CharacterSet {
+                                items: vec![
+                                    CharacterSetItem::Character(' '),
+                                    CharacterSetItem::Tab,
+                                    CharacterSetItem::NewLine,
+                                ],
+                            },
+                            RepetitionType::ZeroOrMore,
+                        )],
+                    },
+                }),
+            ],
+        };
+        let s = g.to_string();
+        assert_eq!(
+            s,
+            "root ::= (expr \"=\" ws term \"\\n\")+\nexpr ::= term ([-+*/] term)*\nterm ::= ident | num | \"(\" ws expr \")\" ws\nident ::= [a-z] [a-z0-9_]* ws\nnum ::= [0-9]+ ws\nws ::= [ \\t\\n]*\n"
         );
     }
 }
