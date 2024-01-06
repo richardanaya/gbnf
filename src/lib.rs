@@ -40,10 +40,20 @@ pub enum CharacterSetItem {
     Tab,
     NewLine,
     CharacterRange(char, char),
+    Hex(String),
+    Unicode(String),
+    Return,
 }
 
 #[derive(Clone, Debug)]
 pub struct CharacterSet {
+    pub is_complement: bool,
+    pub items: Vec<CharacterSetItem>,
+}
+
+
+#[derive(Clone, Debug)]
+pub struct ComplementCharacterSet {
     pub items: Vec<CharacterSetItem>,
 }
 
@@ -95,6 +105,9 @@ impl Display for CharacterSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut s = String::new();
         s.push('[');
+        if self.is_complement {
+            s.push('^');
+        }
         for item in &self.items {
             match item {
                 CharacterSetItem::Character(c) => {
@@ -110,6 +123,15 @@ impl Display for CharacterSet {
                 }
                 CharacterSetItem::NewLine => {
                     s.push_str("\\n");
+                }
+                CharacterSetItem::Hex(hex) => {
+                    s.push_str(&format!("\\x{}", hex));
+                }
+                CharacterSetItem::Unicode(unicode) => {
+                    s.push_str(&format!("\\u{}", unicode));
+                }
+                CharacterSetItem::Return => {
+                    s.push_str("\\r");
                 }
             }
         }
@@ -339,6 +361,7 @@ mod tests {
                     rhs: Production {
                         items: vec![ProductionItem::CharacterSet(
                             CharacterSet {
+                                is_complement: false,
                                 items: vec![CharacterSetItem::CharacterRange('ぁ', 'ゟ')],
                             },
                             RepetitionType::One,
@@ -352,6 +375,7 @@ mod tests {
                     rhs: Production {
                         items: vec![ProductionItem::CharacterSet(
                             CharacterSet {
+                                is_complement: false,
                                 items: vec![CharacterSetItem::CharacterRange('ァ', 'ヿ')],
                             },
                             RepetitionType::One,
@@ -397,6 +421,7 @@ mod tests {
                                     items: vec![
                                         ProductionItem::CharacterSet(
                                             CharacterSet {
+                                                is_complement: false,
                                                 items: vec![
                                                     CharacterSetItem::Character(' '),
                                                     CharacterSetItem::Character('\t'),
@@ -466,6 +491,7 @@ mod tests {
                     rhs: Production {
                         items: vec![ProductionItem::CharacterSet(
                             CharacterSet {
+                                is_complement: false,
                                 items: vec![CharacterSetItem::CharacterRange('ぁ', 'ゟ')],
                             },
                             RepetitionType::One,
@@ -479,6 +505,7 @@ mod tests {
                     rhs: Production {
                         items: vec![ProductionItem::CharacterSet(
                             CharacterSet {
+                                is_complement: false,
                                 items: vec![CharacterSetItem::CharacterRange('ァ', 'ヿ')],
                             },
                             RepetitionType::One,
@@ -492,6 +519,7 @@ mod tests {
                     rhs: Production {
                         items: vec![ProductionItem::CharacterSet(
                             CharacterSet {
+                                is_complement: false,
                                 items: vec![CharacterSetItem::CharacterRange('、', '〾')],
                             },
                             RepetitionType::One,
@@ -505,6 +533,7 @@ mod tests {
                     rhs: Production {
                         items: vec![ProductionItem::CharacterSet(
                             CharacterSet {
+                                is_complement: false,
                                 items: vec![CharacterSetItem::CharacterRange('一', '鿿')],
                             },
                             RepetitionType::One,
@@ -592,6 +621,7 @@ mod tests {
                                     items: vec![
                                         ProductionItem::CharacterSet(
                                             CharacterSet {
+                                                is_complement: false,
                                                 items: vec![
                                                     CharacterSetItem::Character('-'),
                                                     CharacterSetItem::Character('+'),
@@ -681,12 +711,14 @@ mod tests {
                         items: vec![
                             ProductionItem::CharacterSet(
                                 CharacterSet {
+                                    is_complement: false,
                                     items: vec![CharacterSetItem::CharacterRange('a', 'z')],
                                 },
                                 RepetitionType::One,
                             ),
                             ProductionItem::CharacterSet(
                                 CharacterSet {
+                                    is_complement: false,
                                     items: vec![
                                         CharacterSetItem::CharacterRange('a', 'z'),
                                         CharacterSetItem::CharacterRange('0', '9'),
@@ -712,6 +744,7 @@ mod tests {
                         items: vec![
                             ProductionItem::CharacterSet(
                                 CharacterSet {
+                                    is_complement: false,
                                     items: vec![CharacterSetItem::CharacterRange('0', '9')],
                                 },
                                 RepetitionType::OneOrMore,
@@ -732,6 +765,7 @@ mod tests {
                     rhs: Production {
                         items: vec![ProductionItem::CharacterSet(
                             CharacterSet {
+                                is_complement: false,
                                 items: vec![
                                     CharacterSetItem::Character(' '),
                                     CharacterSetItem::Tab,
@@ -791,11 +825,13 @@ mod tests {
                             ProductionItem::Group(Box::new(Production{
                                 items: vec![
                                     ProductionItem::CharacterSet(CharacterSet{
+                                        is_complement: false,
                                         items: vec![
                                             CharacterSetItem::CharacterRange('1', '9'),
                                         ],
                                     }, RepetitionType::One),
                                     ProductionItem::CharacterSet(CharacterSet{
+                                        is_complement: false,
                                         items: vec![
                                             CharacterSetItem::CharacterRange('0', '9'),
                                         ],
@@ -854,6 +890,7 @@ mod tests {
                                 ],
                             }), RepetitionType::One),
                             ProductionItem::CharacterSet(CharacterSet{
+                                is_complement: false,
                                 items: vec![
                                     CharacterSetItem::Character('+'),
                                     CharacterSetItem::Character('#'),
@@ -870,6 +907,7 @@ mod tests {
                     rhs: Production{
                         items: vec![
                             ProductionItem::CharacterSet(CharacterSet{
+                                is_complement: false,
                                 items: vec![
                                     CharacterSetItem::Character('N'),
                                     CharacterSetItem::Character('B'),
@@ -879,11 +917,13 @@ mod tests {
                                 ],
                             }, RepetitionType::One),
                             ProductionItem::CharacterSet(CharacterSet{
+                                is_complement: false,
                                 items: vec![
                                     CharacterSetItem::CharacterRange('a', 'h'),
                                 ],
                             }, RepetitionType::ZeroOrOne),
                             ProductionItem::CharacterSet(CharacterSet{
+                                is_complement: false,
                                 items: vec![
                                     CharacterSetItem::CharacterRange('1', '8'),
                                 ],
@@ -892,11 +932,13 @@ mod tests {
                                 value: "x".to_string(),
                             }, RepetitionType::ZeroOrOne),
                             ProductionItem::CharacterSet(CharacterSet{
+                                is_complement: false,
                                 items: vec![
                                     CharacterSetItem::CharacterRange('a', 'h'),
                                 ],
                             }, RepetitionType::One),
                             ProductionItem::CharacterSet(CharacterSet{
+                                is_complement: false,
                                 items: vec![
                                     CharacterSetItem::CharacterRange('1', '8'),
                                 ],
@@ -914,6 +956,7 @@ mod tests {
                             ProductionItem::Group(Box::new(Production{
                                 items: vec![
                                     ProductionItem::CharacterSet(CharacterSet{
+                                        is_complement: false,
                                         items: vec![
                                             CharacterSetItem::CharacterRange('a', 'h'),
                                         ],
@@ -924,11 +967,13 @@ mod tests {
                                 ],
                             }), RepetitionType::ZeroOrOne),
                             ProductionItem::CharacterSet(CharacterSet{
+                                is_complement: false,
                                 items: vec![
                                     CharacterSetItem::CharacterRange('a', 'h'),
                                 ],
                             }, RepetitionType::One),
                             ProductionItem::CharacterSet(CharacterSet{
+                                is_complement: false,
                                 items: vec![
                                     CharacterSetItem::CharacterRange('1', '8'),
                                 ],
@@ -940,6 +985,7 @@ mod tests {
                                         value: "=".to_string(),
                                     }, RepetitionType::One),
                                     ProductionItem::CharacterSet(CharacterSet{
+                                        is_complement: false,
                                         items: vec![
                                             CharacterSetItem::Character('N'),
                                             CharacterSetItem::Character('B'),
@@ -972,5 +1018,61 @@ mod tests {
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(s, "# Specifies chess moves as a list in algebraic notation, using PGN conventions\n# Force first move to \"1. \", then any 1-2 digit number after, relying on model to follow the pattern\nroot ::= \"1. \" move \" \" move \"\\n\" ([1-9] [0-9]? \". \" move \" \" move \"\\n\")+\nmove ::= (pawn | nonpawn | castle) [+#]?\n# piece type, optional file/rank, optional capture, dest file & rank\nnonpawn ::= [NBKQR] [a-h]? [1-8]? \"x\"? [a-h] [1-8]\n# optional file & capture, dest file & rank, optional promotion\npawn ::= ([a-h] \"x\")? [a-h] [1-8] (\"=\" [NBKQR])?\ncastle ::= \"O-O\" \"-O\"?\n");
+    }
+
+    #[test]
+    fn list(){
+        // root ::= item+
+        // # Excludes various line break characters
+        // item ::= "- " [^\r\n\x0b\x0c\x85\u2028\u2029]+ "\n"
+
+        let g = Grammar{
+            items: vec![
+                GrammarItem::Rule(Rule{
+                    lhs: NonTerminalSymbol{
+                        name: "root".to_string(),
+                    },
+                    rhs: Production{
+                        items: vec![
+                            ProductionItem::NonTerminal(NonTerminalSymbol{
+                                name: "item".to_string(),
+                            }, RepetitionType::OneOrMore),
+                        ],
+                    },
+                }),
+                GrammarItem::Comment(" Excludes various line break characters".to_string()),
+                GrammarItem::Rule(Rule{
+                    lhs: NonTerminalSymbol{
+                        name: "item".to_string(),
+                    },
+                    rhs: Production{
+                        items: vec![
+                            ProductionItem::Terminal(TerminalSymbol{
+                                value: "- ".to_string(),
+                            }, RepetitionType::One),
+                            ProductionItem::CharacterSet(CharacterSet{
+                                is_complement: true,
+                                items: vec![
+                                    CharacterSetItem::Return,
+                                    CharacterSetItem::NewLine,
+                                    CharacterSetItem::Hex("0b".to_string()),
+                                    CharacterSetItem::Hex("0c".to_string()),
+                                    CharacterSetItem::Hex("85".to_string()),
+                                    CharacterSetItem::Unicode("2028".to_string()),
+                                    CharacterSetItem::Unicode("2029".to_string()),
+                                ],
+                            }, RepetitionType::OneOrMore),
+                            ProductionItem::Terminal(TerminalSymbol{
+                                value: "\\n".to_string(),
+                            }, RepetitionType::One),
+                        ],
+                    },
+                }),
+            ],
+        };
+
+        let s = g.to_string();
+        pretty_assertions::assert_eq!(s, "root ::= item+\n# Excludes various line break characters\nitem ::= \"- \" [^\\r\\n\\x0b\\x0c\\x85\\u2028\\u2029]+ \"\\n\"\n");
+
     }
 }
