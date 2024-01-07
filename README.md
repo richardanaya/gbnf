@@ -4,7 +4,7 @@ A library for working with llama.cpp GBNF files. This project is meant to help m
 
 * Data structures for representing GBNF
 * Rendering of a GBNF file from data structures
-* Conversion of JSON schema to GBNF grammar
+* Conversion of a useful subset of JSON schema to GBNF grammar
 
 
 # Installing
