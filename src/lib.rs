@@ -169,7 +169,7 @@ impl Display for Production {
             }
             match item {
                 ProductionItem::LineBreak => {
-                    s.push_str("\n");
+                    s.push('\n');
                 }
                 ProductionItem::Comment(comment) => {
                     s.push_str(&format!("#{}\n", comment));
@@ -209,7 +209,7 @@ impl Display for Grammar {
         for item in &self.items {
             match item {
                 GrammarItem::LineBreak => {
-                    s.push_str("\n");
+                    s.push('\n');
                 }
                 GrammarItem::Comment(comment) => {
                     s.push_str(&format!("#{}\n", comment));
@@ -230,20 +230,194 @@ pub enum JsonSchemaParseError {
 }
 
 fn parse_json_schema_to_grammar(
-    _value: &serde_json::Value,
+    value: &serde_json::Value,
     g: &mut Grammar,
     name: String,
     symbol_count: usize,
 ) -> Result<usize, JsonSchemaParseError> {
     let mut c = symbol_count;
     c += 1;
-    let t = match _value.get("type") {
+
+    // if its a basic type, get the type name
+    let t = match value.get("type") {
         Some(t) => t,
-        None => return Err(JsonSchemaParseError::Failed),
+        None => {
+            // if its not a basic type, probably "oneOf"
+            match value.get("oneOf") {
+                Some(one_of) => {
+                    let one_of_array = one_of.as_array().unwrap();
+
+                    if one_of_array.is_empty() {
+                        return Err(JsonSchemaParseError::Failed);
+                    }
+
+                    let mut possible_symbols: Vec<Production> = vec![];
+                    let mut possible_names: Vec<Production> = vec![];
+                    for (value, i) in one_of_array.iter().zip(0..) {
+                        let new_c = parse_json_schema_to_grammar(
+                            value,
+                            g,
+                            format!("symbol-{}-oneof-{}", c, i),
+                            c,
+                        )?;
+                        possible_symbols.push(Production {
+                            items: vec![
+                                ProductionItem::NonTerminal(
+                                    NonTerminalSymbol {
+                                        name: "ws".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                ),
+                                ProductionItem::NonTerminal(
+                                    NonTerminalSymbol {
+                                        name: format!("symbol{}-oneof", c),
+                                    },
+                                    RepetitionType::One,
+                                ),
+                                ProductionItem::NonTerminal(
+                                    NonTerminalSymbol {
+                                        name: "ws".to_string(),
+                                    },
+                                    RepetitionType::One,
+                                ),
+                            ],
+                        });
+                        possible_names.push(Production {
+                            items: vec![ProductionItem::NonTerminal(
+                                NonTerminalSymbol {
+                                    name: format!("symbol{}-oneof", c),
+                                },
+                                RepetitionType::One,
+                            )],
+                        });
+                        c = new_c;
+                    }
+                    // add production for oneof
+                    g.items.push(GrammarItem::Rule(Rule {
+                        lhs: NonTerminalSymbol { name },
+                        rhs: Production {
+                            items: vec![ProductionItem::OneOf(possible_names)],
+                        },
+                    }));
+                    return Ok(c);
+                }
+                None => {
+                    // lets handle "enum" if its not "oneOf"
+
+                    // if its not a basic type, probably "enum"
+
+                    match value.get("enum") {
+                        Some(enum_value) => {
+                            let enum_array = enum_value.as_array().unwrap();
+
+                            if enum_array.is_empty() {
+                                return Err(JsonSchemaParseError::Failed);
+                            }
+
+                            let mut possible_strings: Vec<Production> = vec![];
+                            for value in enum_array {
+                                let value_as_string = match value.as_str() {
+                                    Some(value_as_string) => value_as_string,
+                                    None => return Err(JsonSchemaParseError::Failed),
+                                };
+
+                                possible_strings.push(Production {
+                                    items: vec![ProductionItem::Terminal(
+                                        TerminalSymbol {
+                                            value: format!("\\\"{}\\\"", value_as_string),
+                                        },
+                                        RepetitionType::One,
+                                    )],
+                                });
+                            }
+                            // add production for enum
+                            g.items.push(GrammarItem::Rule(Rule {
+                                lhs: NonTerminalSymbol { name },
+                                rhs: Production {
+                                    items: vec![ProductionItem::OneOf(possible_strings)],
+                                },
+                            }));
+                            return Ok(c);
+                        }
+                        None => {
+                            // if its not enum , probably constant value
+
+                            match value.get("value") {
+                                Some(v) => {
+                                    if v.is_string() {
+                                        let v_as_string = match v.as_str() {
+                                            Some(v_as_string) => v_as_string,
+                                            None => return Err(JsonSchemaParseError::Failed),
+                                        };
+
+                                        // add production for constant value
+                                        g.items.push(GrammarItem::Rule(Rule {
+                                            lhs: NonTerminalSymbol { name },
+                                            rhs: Production {
+                                                items: vec![ProductionItem::Terminal(
+                                                    TerminalSymbol {
+                                                        value: format!("\\\"{}\\\"", v_as_string),
+                                                    },
+                                                    RepetitionType::One,
+                                                )],
+                                            },
+                                        }));
+                                    } else if v.is_number() {
+                                        let v_as_number = match v.as_f64() {
+                                            Some(v_as_number) => v_as_number,
+                                            None => return Err(JsonSchemaParseError::Failed),
+                                        };
+
+                                        // add production for constant value
+                                        g.items.push(GrammarItem::Rule(Rule {
+                                            lhs: NonTerminalSymbol { name },
+                                            rhs: Production {
+                                                items: vec![ProductionItem::Terminal(
+                                                    TerminalSymbol {
+                                                        value: v_as_number.to_string(),
+                                                    },
+                                                    RepetitionType::One,
+                                                )],
+                                            },
+                                        }));
+                                    } else if v.is_boolean() {
+                                        let v_as_boolean = match v.as_bool() {
+                                            Some(v_as_boolean) => v_as_boolean,
+                                            None => return Err(JsonSchemaParseError::Failed),
+                                        };
+
+                                        // add production for constant value
+                                        g.items.push(GrammarItem::Rule(Rule {
+                                            lhs: NonTerminalSymbol { name },
+                                            rhs: Production {
+                                                items: vec![ProductionItem::Terminal(
+                                                    TerminalSymbol {
+                                                        value: match v_as_boolean {
+                                                            true => "true".to_string(),
+                                                            false => "false".to_string(),
+                                                        },
+                                                    },
+                                                    RepetitionType::One,
+                                                )],
+                                            },
+                                        }));
+                                    } else {
+                                        return Err(JsonSchemaParseError::Failed);
+                                    }
+                                    return Ok(c);
+                                }
+                                None => return Err(JsonSchemaParseError::Failed),
+                            }
+                        }
+                    }
+                }
+            };
+        }
     };
+
     if t == "boolean" {
         g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol { name: name },
+            lhs: NonTerminalSymbol { name },
             rhs: Production {
                 items: vec![
                     ProductionItem::NonTerminal(
@@ -263,7 +437,7 @@ fn parse_json_schema_to_grammar(
         }));
     } else if t == "number" {
         g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol { name: name },
+            lhs: NonTerminalSymbol { name },
             rhs: Production {
                 items: vec![
                     ProductionItem::NonTerminal(
@@ -283,7 +457,7 @@ fn parse_json_schema_to_grammar(
         }));
     } else if t == "string" {
         g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol { name: name },
+            lhs: NonTerminalSymbol { name },
             rhs: Production {
                 items: vec![
                     ProductionItem::NonTerminal(
@@ -302,7 +476,7 @@ fn parse_json_schema_to_grammar(
             },
         }));
     } else if t == "object" {
-        let properties = match _value.get("properties") {
+        let properties = match value.get("properties") {
             Some(properties) => properties,
             None => return Err(JsonSchemaParseError::Failed),
         };
@@ -1001,6 +1175,211 @@ symbol5-y-value ::= number ws
 symbol6-z-value ::= string ws
 symbol3-c-value ::= "{" ws "x" ws ":" ws symbol4-x-value "," ws "y" ws ":" ws symbol5-y-value "," ws "z" ws ":" ws symbol6-z-value "}" ws
 root ::= "{" ws "a" ws ":" ws symbol1-a-value "," ws "b" ws ":" ws symbol2-b-value "," ws "c" ws ":" ws symbol3-c-value "}" ws
+
+###############################
+# Primitive value type symbols
+###############################
+null ::= "null" ws
+boolean ::= "true" | "false" ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+ws ::= [ ]
+"#
+        )
+    }
+
+    #[test]
+    fn simple_json_schema_oneof() {
+        let schema = r#"
+   {
+	"$schema": "https://json-schema.org/draft/2019-09/schema",
+	"oneOf": [
+      {
+        "type" : "object",
+        "properties" : {
+            "firstName" : {
+                "type" : "string"
+            },
+            "lastName" : {
+                "type" : "string"
+            },
+            "sport" : {
+                "type" : "string"
+            }
+          }
+      },
+      {
+        "type" : "number"
+      }
+    ]
+}
+            "#;
+        let g = Grammar::from_json_schema(schema).unwrap();
+        let s = g.to_string();
+        pretty_assertions::assert_eq!(
+            s,
+            r#"################################################
+# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
+# $schema: https://json-schema.org/draft/2019-09/schema
+################################################
+
+symbol2-firstName-value ::= string ws
+symbol3-lastName-value ::= string ws
+symbol4-sport-value ::= string ws
+symbol-1-oneof-0 ::= "{" ws "firstName" ws ":" ws symbol2-firstName-value "," ws "lastName" ws ":" ws symbol3-lastName-value "," ws "sport" ws ":" ws symbol4-sport-value "}" ws
+symbol-5-oneof-1 ::= number ws
+root ::= symbol1-oneof | symbol5-oneof
+
+###############################
+# Primitive value type symbols
+###############################
+null ::= "null" ws
+boolean ::= "true" | "false" ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+ws ::= [ ]
+"#,
+        )
+    }
+
+    #[test]
+    fn simple_json_schema_enum() {
+        let schema = r#"
+        {
+         "$schema": "https://json-schema.org/draft/2019-09/schema",
+         "enum": [
+              "red",
+              "amber",
+              "green"
+         ]
+     }
+                 "#;
+        let g = Grammar::from_json_schema(schema).unwrap();
+        let s = g.to_string();
+
+        pretty_assertions::assert_eq!(
+            s,
+            r#"################################################
+# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
+# $schema: https://json-schema.org/draft/2019-09/schema
+################################################
+
+root ::= "\"red\"" | "\"amber\"" | "\"green\""
+
+###############################
+# Primitive value type symbols
+###############################
+null ::= "null" ws
+boolean ::= "true" | "false" ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+ws ::= [ ]
+"#
+        )
+    }
+
+    #[test]
+    fn simple_json_schema_value_string() {
+        let schema = r#"
+        {
+         "$schema": "https://json-schema.org/draft/2019-09/schema",
+         "value": "red"
+     }
+                 "#;
+        let g = Grammar::from_json_schema(schema).unwrap();
+        let s = g.to_string();
+
+        pretty_assertions::assert_eq!(
+            s,
+            r#"################################################
+# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
+# $schema: https://json-schema.org/draft/2019-09/schema
+################################################
+
+root ::= "\"red\""
+
+###############################
+# Primitive value type symbols
+###############################
+null ::= "null" ws
+boolean ::= "true" | "false" ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+ws ::= [ ]
+"#
+        )
+    }
+
+    #[test]
+    fn simple_json_kitchen_sink() {
+        let schema = r#"
+        {
+            "$schema": "https://json-schema.org/draft/2019-09/schema",
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "age": {
+                    "type": "number"
+                },
+                "uses_ai": {
+                    "type": "boolean"
+                },
+                "favorite_animal": {
+                    "enum": [
+                        "dog",
+                        "cat",
+                        "none"
+                    ]
+                },
+                "current_ai_model": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "value": "hugging_face"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "value": "openai"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+                 "#;
+        let g = Grammar::from_json_schema(schema).unwrap();
+        let s = g.to_string();
+
+        pretty_assertions::assert_eq!(
+            s,
+            r#"################################################
+# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
+# $schema: https://json-schema.org/draft/2019-09/schema
+################################################
+
+symbol1-age-value ::= number ws
+symbol4-name-value ::= string ws
+symbol5-type-value ::= "\"hugging_face\""
+symbol-3-oneof-0 ::= "{" ws "name" ws ":" ws symbol4-name-value "," ws "type" ws ":" ws symbol5-type-value "}" ws
+symbol7-type-value ::= "\"openai\""
+symbol-6-oneof-1 ::= "{" ws "type" ws ":" ws symbol7-type-value "}" ws
+symbol2-current_ai_model-value ::= symbol3-oneof | symbol6-oneof
+symbol8-favorite_animal-value ::= "\"dog\"" | "\"cat\"" | "\"none\""
+symbol9-name-value ::= string ws
+symbol10-uses_ai-value ::= boolean ws
+root ::= "{" ws "age" ws ":" ws symbol1-age-value "," ws "current_ai_model" ws ":" ws symbol2-current_ai_model-value "," ws "favorite_animal" ws ":" ws symbol8-favorite_animal-value "," ws "name" ws ":" ws symbol9-name-value "," ws "uses_ai" ws ":" ws symbol10-uses_ai-value "}" ws
 
 ###############################
 # Primitive value type symbols

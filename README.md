@@ -2,10 +2,6 @@
 
 A library for working with llama.cpp GBNF files.
 
-Goals of this project:
-* offer standard grammars
-* handle conversion of JSON schema to GBNF
-* parsing and rendering of GBNF files
 
 # Installing
 
@@ -13,7 +9,70 @@ Goals of this project:
 cargo add gnbf
 ```
 
-# JSON-Schema Conversation
+# JSON schema support
+
+Currently this library can convert a limited but very useful subset of JSON schema:
+* boolean, number, string
+* object with all required properties
+* enum
+* oneOf
+
+Here's one of the most complext JSON schemas that can be handled right now:
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2019-09/schema",
+    "type": "object",
+    "properties": {
+        "name": {
+            "description": "name of a computer user",
+            "type": "string"
+        },
+        "age": {
+            "description": "age of a computer user",
+            "type": "number"
+        },
+        "uses_ai": {
+            "description": "do they use AI",
+            "type": "boolean"
+        },
+        "favorite_animal": {
+            "description": "favorite animal",
+            "enum": [
+                "dog",
+                "cat",
+                "none"
+            ]
+        },
+        "current_ai_model": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "value": "hugging_face"
+                        },
+                        "name": {
+                            "description": "name of hugging face model",
+                            "type": "string"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "value": "openai"
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}
+```
+
+# JSON-Schema Converting to AI Grammar
 
 ```rust
 fn simple_json_schema_basic_object_example() {
@@ -69,4 +128,11 @@ ws ::= [ ]
     }
 ```
 
+Goals of this project:
+* offer standard grammars
+* handle conversion of JSON schema to GBNF
+* parsing and rendering of GBNF files
+
 See the [documentation](https://docs.rs/gbnf).
+
+
