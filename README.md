@@ -22,6 +22,9 @@ Currently this library can convert a limited but very useful subset of JSON sche
 * enum
 * oneOf
 
+Known issues:
+* objects with property names with underscores don't translate well right now
+
 Here's one of the most complext JSON schemas that can be handled right now:
 
 ```json
