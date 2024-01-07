@@ -570,7 +570,7 @@ fn parse_json_schema_to_grammar(
             }
             prop_rules.push(ProductionItem::Terminal(
                 TerminalSymbol {
-                    value: key.to_string(),
+                    value: format!("\\\"{}\\\"", key),
                 },
                 RepetitionType::One,
             ));
@@ -1178,7 +1178,7 @@ ws ::= [ ]
 symbol1-a-value ::= boolean ws
 symbol2-b-value ::= number ws
 symbol3-c-value ::= string ws
-root ::= "{" ws "a" ws ":" ws symbol1-a-value "," ws "b" ws ":" ws symbol2-b-value "," ws "c" ws ":" ws symbol3-c-value "}" ws
+root ::= "{" ws "\"a\"" ws ":" ws symbol1-a-value "," ws "\"b\"" ws ":" ws symbol2-b-value "," ws "\"c\"" ws ":" ws symbol3-c-value "}" ws
 
 ###############################
 # Primitive value type symbols
@@ -1240,8 +1240,8 @@ symbol2-b-value ::= number ws
 symbol4-x-value ::= boolean ws
 symbol5-y-value ::= number ws
 symbol6-z-value ::= string ws
-symbol3-c-value ::= "{" ws "x" ws ":" ws symbol4-x-value "," ws "y" ws ":" ws symbol5-y-value "," ws "z" ws ":" ws symbol6-z-value "}" ws
-root ::= "{" ws "a" ws ":" ws symbol1-a-value "," ws "b" ws ":" ws symbol2-b-value "," ws "c" ws ":" ws symbol3-c-value "}" ws
+symbol3-c-value ::= "{" ws "\"x\"" ws ":" ws symbol4-x-value "," ws "\"y\"" ws ":" ws symbol5-y-value "," ws "\"z\"" ws ":" ws symbol6-z-value "}" ws
+root ::= "{" ws "\"a\"" ws ":" ws symbol1-a-value "," ws "\"b\"" ws ":" ws symbol2-b-value "," ws "\"c\"" ws ":" ws symbol3-c-value "}" ws
 
 ###############################
 # Primitive value type symbols
@@ -1293,7 +1293,7 @@ ws ::= [ ]
 symbol2-firstName-value ::= string ws
 symbol3-lastName-value ::= string ws
 symbol4-sport-value ::= string ws
-symbol-1-oneof-0 ::= "{" ws "firstName" ws ":" ws symbol2-firstName-value "," ws "lastName" ws ":" ws symbol3-lastName-value "," ws "sport" ws ":" ws symbol4-sport-value "}" ws
+symbol-1-oneof-0 ::= "{" ws "\"firstName\"" ws ":" ws symbol2-firstName-value "," ws "\"lastName\"" ws ":" ws symbol3-lastName-value "," ws "\"sport\"" ws ":" ws symbol4-sport-value "}" ws
 symbol-5-oneof-1 ::= number ws
 root ::= symbol-1-oneof-0 | symbol-5-oneof-1
 
@@ -1548,13 +1548,13 @@ symbol3-usesAI-value ::= boolean ws
 symbol4-favoriteAnimal-value ::= "\"dog\"" | "\"cat\"" | "\"none\""
 symbol7-type-value ::= "\"hugging_face\""
 symbol8-name-value ::= string ws
-symbol-6-oneof-0 ::= "{" ws "type" ws ":" ws symbol7-type-value "," ws "name" ws ":" ws symbol8-name-value "}" ws
+symbol-6-oneof-0 ::= "{" ws "\"type\"" ws ":" ws symbol7-type-value "," ws "\"name\"" ws ":" ws symbol8-name-value "}" ws
 symbol10-type-value ::= "\"openai\""
-symbol-9-oneof-1 ::= "{" ws "type" ws ":" ws symbol10-type-value "}" ws
+symbol-9-oneof-1 ::= "{" ws "\"type\"" ws ":" ws symbol10-type-value "}" ws
 symbol5-currentAIModel-value ::= symbol-6-oneof-0 | symbol-9-oneof-1
 symbol12-item ::= string ws
 symbol11-favoriteColors-value ::= "[" ws symbol12-item* ws "]" ws
-root ::= "{" ws "name" ws ":" ws symbol1-name-value "," ws "age" ws ":" ws symbol2-age-value "," ws "usesAI" ws ":" ws symbol3-usesAI-value "," ws "favoriteAnimal" ws ":" ws symbol4-favoriteAnimal-value "," ws "currentAIModel" ws ":" ws symbol5-currentAIModel-value "," ws "favoriteColors" ws ":" ws symbol11-favoriteColors-value "}" ws
+root ::= "{" ws "\"name\"" ws ":" ws symbol1-name-value "," ws "\"age\"" ws ":" ws symbol2-age-value "," ws "\"usesAI\"" ws ":" ws symbol3-usesAI-value "," ws "\"favoriteAnimal\"" ws ":" ws symbol4-favoriteAnimal-value "," ws "\"currentAIModel\"" ws ":" ws symbol5-currentAIModel-value "," ws "\"favoriteColors\"" ws ":" ws symbol11-favoriteColors-value "}" ws
 
 ###############################
 # Primitive value type symbols
