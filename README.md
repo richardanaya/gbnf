@@ -82,6 +82,12 @@ Here's one of the most complext JSON schemas that can be handled right now:
                     }
                 }
             ]
+        },
+        "favoriteColors": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
         }
     }
 }
