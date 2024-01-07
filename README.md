@@ -23,9 +23,11 @@ Currently this library can convert a limited but very useful subset of JSON sche
 * enum
 * oneOf
 * property order of objects is preserved
+* array support
 
 Known issues:
 * objects with property names with underscores don't translate well right now
+* no minimum, maximums, fixed lengths, etc. (though putting the schema in system prompt may help depending on model)
 
 Here's one of the most complext JSON schemas that can be handled right now:
 

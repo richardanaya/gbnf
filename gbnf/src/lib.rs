@@ -475,6 +475,73 @@ fn parse_json_schema_to_grammar(
                 ],
             },
         }));
+    } else if t == "array" {
+        match value.get("items") {
+            Some(items) => {
+                let item_template_name = format!("symbol{}-item", c);
+                let new_c = parse_json_schema_to_grammar(items, g, item_template_name.clone(), c)?;
+                c = new_c;
+
+                let rhs_start = vec![
+                    ProductionItem::Terminal(
+                        TerminalSymbol {
+                            value: "[".to_string(),
+                        },
+                        RepetitionType::One,
+                    ),
+                    ProductionItem::NonTerminal(
+                        NonTerminalSymbol {
+                            name: "ws".to_string(),
+                        },
+                        RepetitionType::One,
+                    ),
+                ];
+
+                let rhs_end = vec![
+                    ProductionItem::Terminal(
+                        TerminalSymbol {
+                            value: "]".to_string(),
+                        },
+                        RepetitionType::One,
+                    ),
+                    ProductionItem::NonTerminal(
+                        NonTerminalSymbol {
+                            name: "ws".to_string(),
+                        },
+                        RepetitionType::One,
+                    ),
+                ];
+
+                g.items.push(GrammarItem::Rule(Rule {
+                    lhs: NonTerminalSymbol { name },
+                    rhs: Production {
+                        items: rhs_start
+                            .iter()
+                            .chain(
+                                [
+                                    ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: item_template_name.clone(),
+                                        },
+                                        RepetitionType::ZeroOrMore,
+                                    ),
+                                    ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: "ws".to_string(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                ]
+                                .iter(),
+                            )
+                            .chain(rhs_end.iter())
+                            .cloned()
+                            .collect(),
+                    },
+                }));
+            }
+            None => return Err(JsonSchemaParseError::Failed),
+        };
     } else if t == "object" {
         let properties = match value.get("properties") {
             Some(properties) => properties,
@@ -1311,6 +1378,106 @@ ws ::= [ ]
     }
 
     #[test]
+    fn simple_json_schema_value_number() {
+        let schema = r#"
+        {
+         "$schema": "https://json-schema.org/draft/2019-09/schema",
+         "value": 42
+     }
+                 "#;
+        let g = Grammar::from_json_schema(schema).unwrap();
+        let s = g.to_string();
+
+        pretty_assertions::assert_eq!(
+            s,
+            r#"################################################
+# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
+# $schema: https://json-schema.org/draft/2019-09/schema
+################################################
+
+root ::= "42"
+
+###############################
+# Primitive value type symbols
+###############################
+null ::= "null" ws
+boolean ::= "true" | "false" ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+ws ::= [ ]
+"#
+        )
+    }
+
+    #[test]
+    fn simple_json_schema_value_boolean() {
+        let schema = r#"
+        {
+         "$schema": "https://json-schema.org/draft/2019-09/schema",
+         "value": true
+     }
+                 "#;
+        let g = Grammar::from_json_schema(schema).unwrap();
+        let s = g.to_string();
+
+        pretty_assertions::assert_eq!(
+            s,
+            r#"################################################
+# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
+# $schema: https://json-schema.org/draft/2019-09/schema
+################################################
+
+root ::= "true"
+
+###############################
+# Primitive value type symbols
+###############################
+null ::= "null" ws
+boolean ::= "true" | "false" ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+ws ::= [ ]
+"#
+        )
+    }
+
+    #[test]
+    fn simple_json_schema_array() {
+        let schema = r#"
+        {
+         "$schema": "https://json-schema.org/draft/2019-09/schema",
+         "type": "array",
+         "items": {
+             "type": "string"
+         }
+     }
+                 "#;
+        let g = Grammar::from_json_schema(schema).unwrap();
+        let s = g.to_string();
+
+        pretty_assertions::assert_eq!(
+            s,
+            r#"################################################
+# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
+# $schema: https://json-schema.org/draft/2019-09/schema
+################################################
+
+symbol1-item ::= string ws
+root ::= "[" ws symbol1-item* ws "]" ws
+
+###############################
+# Primitive value type symbols
+###############################
+null ::= "null" ws
+boolean ::= "true" | "false" ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+ws ::= [ ]
+"#
+        )
+    }
+
+    #[test]
     fn simple_json_kitchen_sink() {
         let schema = r#"
         {
@@ -1355,6 +1522,12 @@ ws ::= [ ]
                             }
                         }
                     ]
+                },
+                "favoriteColors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         }
@@ -1379,7 +1552,9 @@ symbol-6-oneof-0 ::= "{" ws "type" ws ":" ws symbol7-type-value "," ws "name" ws
 symbol10-type-value ::= "\"openai\""
 symbol-9-oneof-1 ::= "{" ws "type" ws ":" ws symbol10-type-value "}" ws
 symbol5-currentAIModel-value ::= symbol-6-oneof-0 | symbol-9-oneof-1
-root ::= "{" ws "name" ws ":" ws symbol1-name-value "," ws "age" ws ":" ws symbol2-age-value "," ws "usesAI" ws ":" ws symbol3-usesAI-value "," ws "favoriteAnimal" ws ":" ws symbol4-favoriteAnimal-value "," ws "currentAIModel" ws ":" ws symbol5-currentAIModel-value "}" ws
+symbol12-item ::= string ws
+symbol11-favoriteColors-value ::= "[" ws symbol12-item* ws "]" ws
+root ::= "{" ws "name" ws ":" ws symbol1-name-value "," ws "age" ws ":" ws symbol2-age-value "," ws "usesAI" ws ":" ws symbol3-usesAI-value "," ws "favoriteAnimal" ws ":" ws symbol4-favoriteAnimal-value "," ws "currentAIModel" ws ":" ws symbol5-currentAIModel-value "," ws "favoriteColors" ws ":" ws symbol11-favoriteColors-value "}" ws
 
 ###############################
 # Primitive value type symbols
