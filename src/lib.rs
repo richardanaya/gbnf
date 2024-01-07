@@ -1369,17 +1369,17 @@ ws ::= [ ]
 # $schema: https://json-schema.org/draft/2019-09/schema
 ################################################
 
-symbol1-age-value ::= number ws
-symbol4-name-value ::= string ws
-symbol5-type-value ::= "\"hugging_face\""
-symbol-3-oneof-0 ::= "{" ws "name" ws ":" ws symbol4-name-value "," ws "type" ws ":" ws symbol5-type-value "}" ws
-symbol7-type-value ::= "\"openai\""
-symbol-6-oneof-1 ::= "{" ws "type" ws ":" ws symbol7-type-value "}" ws
-symbol2-currentAIModel-value ::= symbol-3-oneof-0 | symbol-6-oneof-1
-symbol8-favoriteAnimal-value ::= "\"dog\"" | "\"cat\"" | "\"none\""
-symbol9-name-value ::= string ws
-symbol10-usesAI-value ::= boolean ws
-root ::= "{" ws "age" ws ":" ws symbol1-age-value "," ws "currentAIModel" ws ":" ws symbol2-currentAIModel-value "," ws "favoriteAnimal" ws ":" ws symbol8-favoriteAnimal-value "," ws "name" ws ":" ws symbol9-name-value "," ws "usesAI" ws ":" ws symbol10-usesAI-value "}" ws
+symbol1-name-value ::= string ws
+symbol2-age-value ::= number ws
+symbol3-usesAI-value ::= boolean ws
+symbol4-favoriteAnimal-value ::= "\"dog\"" | "\"cat\"" | "\"none\""
+symbol7-type-value ::= "\"hugging_face\""
+symbol8-name-value ::= string ws
+symbol-6-oneof-0 ::= "{" ws "type" ws ":" ws symbol7-type-value "," ws "name" ws ":" ws symbol8-name-value "}" ws
+symbol10-type-value ::= "\"openai\""
+symbol-9-oneof-1 ::= "{" ws "type" ws ":" ws symbol10-type-value "}" ws
+symbol5-currentAIModel-value ::= symbol-6-oneof-0 | symbol-9-oneof-1
+root ::= "{" ws "name" ws ":" ws symbol1-name-value "," ws "age" ws ":" ws symbol2-age-value "," ws "usesAI" ws ":" ws symbol3-usesAI-value "," ws "favoriteAnimal" ws ":" ws symbol4-favoriteAnimal-value "," ws "currentAIModel" ws ":" ws symbol5-currentAIModel-value "}" ws
 
 ###############################
 # Primitive value type symbols

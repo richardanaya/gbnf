@@ -7,6 +7,7 @@ A library for working with llama.cpp GBNF files. This project is meant to help m
 * Conversion of a useful subset of JSON schema to GBNF grammar
 * **MIT** licensed
 
+This library was primarily built for it's sister project, an LLM API [epistemology](https://github.com/richardanaya/epistemology/).
 
 # Installing
 
@@ -21,6 +22,7 @@ Currently this library can convert a limited but very useful subset of JSON sche
 * object with all required properties
 * enum
 * oneOf
+* property order of objects is preserved
 
 Known issues:
 * objects with property names with underscores don't translate well right now
