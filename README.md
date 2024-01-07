@@ -10,6 +10,8 @@ A library for working with llama.cpp GBNF files.  GBNF files represent grammar o
 
 This library was primarily built for it's sister project, an LLM API [epistemology](https://github.com/richardanaya/epistemology/).
 
+<img width="1059" alt="Screenshot 2024-01-06 at 11 00 42 PM" src="https://github.com/richardanaya/gbnf/assets/294042/6f9ab935-4b1a-4685-8bb5-ca9b5d2b4970">
+
 # Installing
 
 ```
