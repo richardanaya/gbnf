@@ -132,10 +132,12 @@ ws ::= [ ]
     }
 ```
 
-Goals of this project:
+# Future goals of this project:
 * offer standard grammars
-* handle conversion of JSON schema to GBNF
-* parsing and rendering of GBNF files
+* handle useful conversion of JSON schema to GBNF (we won't be able to handle it all probably).
+* parsing of GBNF files using Nom 7.
+
+I'm totally down for contributors, please add tests.
 
 See the [documentation](https://docs.rs/gbnf).
 
