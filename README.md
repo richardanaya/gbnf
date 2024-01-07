@@ -5,6 +5,7 @@ A library for working with llama.cpp GBNF files. This project is meant to help m
 * Data structures for representing GBNF
 * Rendering of a GBNF file from data structures
 * Conversion of a useful subset of JSON schema to GBNF grammar
+* Easily installable CLI converter [jsonschema2gbnf](https://github.com/richardanaya/gbnf/tree/main/jsonschema2gbnf) that uses library 
 * **MIT** licensed
 
 This library was primarily built for it's sister project, an LLM API [epistemology](https://github.com/richardanaya/epistemology/).
