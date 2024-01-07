@@ -1,13 +1,16 @@
 # GBNF-rs
 
-A library for working with llama.cpp GBNF files. This project is meant to help make it easier to constrain and guide GBNF driven AIs like [llama.cpp](https://github.com/ggerganov/llama.cpp).
+A library for working with llama.cpp GBNF files.  GBNF files represent grammar of AI output. This project is meant to help make it easier to constrain and guide GBNF driven AIs like [llama.cpp](https://github.com/ggerganov/llama.cpp) using [JSON schema](https://json-schema.org/)  ( a way to define the shape of JSON data ). The hope is make more useful outputs when combined with system prompting (that is hopefully also aware of JSON schema to some degree).
 
 * Data structures for representing GBNF
 * Rendering of a GBNF file from data structures
 * Conversion of a useful subset of JSON schema to GBNF grammar
+* Easily installable CLI converter [jsonschema2gbnf](https://github.com/richardanaya/gbnf/tree/main/jsonschema2gbnf) that uses library 
 * **MIT** licensed
 
 This library was primarily built for it's sister project, an LLM API [epistemology](https://github.com/richardanaya/epistemology/).
+
+<img width="1059" alt="Screenshot 2024-01-06 at 11 00 42 PM" src="https://github.com/richardanaya/gbnf/assets/294042/6f9ab935-4b1a-4685-8bb5-ca9b5d2b4970">
 
 # Installing
 
