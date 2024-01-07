@@ -144,6 +144,6 @@ See the [documentation](https://docs.rs/gbnf).
 
 # Attribution
 
-Multiple MIT licensed examples of GBNF were used from the `llama.cpp` [examples for grammar](https://github.com/ggerganov/llama.cpp/tree/master/grammars) for automated tests for compliance and general inspiration for this project from [python JSON schema converter](https://github.com/ggerganov/llama.cpp/blob/master/examples/json-schema-to-grammar.py). Thank you.
+Multiple **MIT** licensed examples of GBNF were used from the `llama.cpp` [examples for grammar](https://github.com/ggerganov/llama.cpp/tree/master/grammars) for automated tests for compliance and general inspiration for this project from [python JSON schema converter](https://github.com/ggerganov/llama.cpp/blob/master/examples/json-schema-to-grammar.py). Thank you.
 
 
