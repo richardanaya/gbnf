@@ -1,6 +1,6 @@
 [package]
 name = "jsonschema2gbnf"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 description = "Convert JSON Schema to GBNF"
 license = "MIT"
