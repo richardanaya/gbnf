@@ -952,6 +952,69 @@ ws ::= [ ]
     }
 
     #[test]
+    fn simple_json_schema_nested_object() {
+        let schema = r#"
+    {
+        "$id": "https://example.com/enumerated-values.schema.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Enumerated Values",
+        "type": "object",
+        "properties": {
+            "a": {
+                "type": "boolean"
+            },
+            "b": {
+                "type": "number"
+            },
+            "c": {
+                "type": "object",
+                "properties": {
+                    "x": {
+                        "type": "boolean"
+                    },
+                    "y": {
+                        "type": "number"
+                    },
+                    "z": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+            "#;
+        let g = Grammar::from_json_schema(schema).unwrap();
+        let s = g.to_string();
+        pretty_assertions::assert_eq!(
+            s,
+            r#"################################################
+# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
+# $id: https://example.com/enumerated-values.schema.json
+# $schema: https://json-schema.org/draft/2020-12/schema
+# title: Enumerated Values
+################################################
+
+symbol1-a-value ::= boolean ws
+symbol2-b-value ::= number ws
+symbol4-x-value ::= boolean ws
+symbol5-y-value ::= number ws
+symbol6-z-value ::= string ws
+symbol3-c-value ::= "{" ws "x" ws ":" ws symbol4-x-value "," ws "y" ws ":" ws symbol5-y-value "," ws "z" ws ":" ws symbol6-z-value "}" ws
+root ::= "{" ws "a" ws ":" ws symbol1-a-value "," ws "b" ws ":" ws symbol2-b-value "," ws "c" ws ":" ws symbol3-c-value "}" ws
+
+###############################
+# Primitive value type symbols
+###############################
+null ::= "null" ws
+boolean ::= "true" | "false" ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+ws ::= [ ]
+"#
+        )
+    }
+
+    #[test]
     fn simple_0() {
         // root ::= "yes" | "no"
         let g = Grammar {
