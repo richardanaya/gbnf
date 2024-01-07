@@ -4,6 +4,7 @@ version = "0.1.5"
 edition = "2021"
 description = "A libray for working with GBNF"
 license = "MIT"
+readme = "../README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
