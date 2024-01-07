@@ -3,7 +3,7 @@
 A library for working with llama.cpp GBNF files. This project is meant to help make it easier to constrain and guide GBNF driven AIs like [llama.cpp](https://github.com/ggerganov/llama.cpp).
 
 * Data structures for representing GBNF
-* Rendering of GBNF files from data structures
+* Rendering of a GBNF file from data structures
 * Convesion of JSON schema to GBNF
 
 
