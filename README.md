@@ -1,6 +1,6 @@
 # GBNF-rs
 
-A library for working with llama.cpp GBNF files. This project is meant to help make it easier to constrain and guide GBNF driven AIs like [llama.cpp](https://github.com/ggerganov/llama.cpp).
+A library for working with llama.cpp GBNF files. This project is meant to help make it easier to constrain and guide GBNF driven AIs like [llama.cpp](https://github.com/ggerganov/llama.cpp) using JSON schema https://json-schema.org/ ( a way to define the shape of JSON data ).
 
 * Data structures for representing GBNF
 * Rendering of a GBNF file from data structures
