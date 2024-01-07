@@ -51,9 +51,9 @@ symbol1-a-value ::= boolean ws
 symbol2-b-value ::= number ws
 symbol3-c-value ::= string ws
 root ::= "{" ws 
- "a" ws ":" ws symbol2-a-value 
- "b" ws ":" ws symbol3-b-value "," ws 
- "c" ws ":" ws symbol4-c-value "," ws 
+ "a" ws ":" ws symbol1-a-value 
+ "b" ws ":" ws symbol2-b-value "," ws 
+ "c" ws ":" ws symbol3-c-value "," ws 
  "}" ws
 
 ###############################
@@ -63,7 +63,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= ([ \t\n] ws)?
+ws ::= [ ]
 "#
         )
     }
