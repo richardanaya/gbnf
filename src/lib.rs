@@ -270,7 +270,7 @@ fn parse_json_schema_to_grammar(
                                 ),
                                 ProductionItem::NonTerminal(
                                     NonTerminalSymbol {
-                                        name: format!("symbol{}-oneof", c),
+                                        name: format!("symbol-{}-oneof-{}", c, i),
                                     },
                                     RepetitionType::One,
                                 ),
@@ -285,7 +285,7 @@ fn parse_json_schema_to_grammar(
                         possible_names.push(Production {
                             items: vec![ProductionItem::NonTerminal(
                                 NonTerminalSymbol {
-                                    name: format!("symbol{}-oneof", c),
+                                    name: format!("symbol-{}-oneof-{}", c, i),
                                 },
                                 RepetitionType::One,
                             )],
@@ -1228,7 +1228,7 @@ symbol3-lastName-value ::= string ws
 symbol4-sport-value ::= string ws
 symbol-1-oneof-0 ::= "{" ws "firstName" ws ":" ws symbol2-firstName-value "," ws "lastName" ws ":" ws symbol3-lastName-value "," ws "sport" ws ":" ws symbol4-sport-value "}" ws
 symbol-5-oneof-1 ::= number ws
-root ::= symbol1-oneof | symbol5-oneof
+root ::= symbol-1-oneof-0 | symbol-5-oneof-1
 
 ###############################
 # Primitive value type symbols
@@ -1323,17 +1323,17 @@ ws ::= [ ]
                 "age": {
                     "type": "number"
                 },
-                "uses_ai": {
+                "usesAI": {
                     "type": "boolean"
                 },
-                "favorite_animal": {
+                "favoriteAnimal": {
                     "enum": [
                         "dog",
                         "cat",
                         "none"
                     ]
                 },
-                "current_ai_model": {
+                "currentAIModel": {
                     "oneOf": [
                         {
                             "type": "object",
@@ -1375,11 +1375,11 @@ symbol5-type-value ::= "\"hugging_face\""
 symbol-3-oneof-0 ::= "{" ws "name" ws ":" ws symbol4-name-value "," ws "type" ws ":" ws symbol5-type-value "}" ws
 symbol7-type-value ::= "\"openai\""
 symbol-6-oneof-1 ::= "{" ws "type" ws ":" ws symbol7-type-value "}" ws
-symbol2-current_ai_model-value ::= symbol3-oneof | symbol6-oneof
-symbol8-favorite_animal-value ::= "\"dog\"" | "\"cat\"" | "\"none\""
+symbol2-currentAIModel-value ::= symbol-3-oneof-0 | symbol-6-oneof-1
+symbol8-favoriteAnimal-value ::= "\"dog\"" | "\"cat\"" | "\"none\""
 symbol9-name-value ::= string ws
-symbol10-uses_ai-value ::= boolean ws
-root ::= "{" ws "age" ws ":" ws symbol1-age-value "," ws "current_ai_model" ws ":" ws symbol2-current_ai_model-value "," ws "favorite_animal" ws ":" ws symbol8-favorite_animal-value "," ws "name" ws ":" ws symbol9-name-value "," ws "uses_ai" ws ":" ws symbol10-uses_ai-value "}" ws
+symbol10-usesAI-value ::= boolean ws
+root ::= "{" ws "age" ws ":" ws symbol1-age-value "," ws "currentAIModel" ws ":" ws symbol2-currentAIModel-value "," ws "favoriteAnimal" ws ":" ws symbol8-favoriteAnimal-value "," ws "name" ws ":" ws symbol9-name-value "," ws "usesAI" ws ":" ws symbol10-usesAI-value "}" ws
 
 ###############################
 # Primitive value type symbols

@@ -37,11 +37,11 @@ Here's one of the most complext JSON schemas that can be handled right now:
             "description": "age of a computer user",
             "type": "number"
         },
-        "uses_ai": {
+        "usesAI": {
             "description": "do they use AI",
             "type": "boolean"
         },
-        "favorite_animal": {
+        "favoriteAnimal": {
             "description": "favorite animal",
             "enum": [
                 "dog",
@@ -49,7 +49,7 @@ Here's one of the most complext JSON schemas that can be handled right now:
                 "none"
             ]
         },
-        "current_ai_model": {
+        "currentAIModel": {
             "oneOf": [
                 {
                     "type": "object",
