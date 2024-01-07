@@ -309,8 +309,24 @@ fn parse_json_schema_to_grammar(
         let mut prop_rules = vec![];
         let mut is_first = true;
         for (key, value) in properties.as_object().unwrap() {
-            c = parse_json_schema_to_grammar(value, g, format!("symbol{}-{}-value", c, key), c)?;
-            prop_rules.push(ProductionItem::LineBreak);
+            let new_c =
+                parse_json_schema_to_grammar(value, g, format!("symbol{}-{}-value", c, key), c)?;
+            if !is_first {
+                prop_rules.push(ProductionItem::Terminal(
+                    TerminalSymbol {
+                        value: ",".to_string(),
+                    },
+                    RepetitionType::One,
+                ));
+                prop_rules.push(ProductionItem::NonTerminal(
+                    NonTerminalSymbol {
+                        name: "ws".to_string(),
+                    },
+                    RepetitionType::One,
+                ));
+            } else {
+                is_first = false;
+            }
             prop_rules.push(ProductionItem::Terminal(
                 TerminalSymbol {
                     value: key.to_string(),
@@ -341,22 +357,8 @@ fn parse_json_schema_to_grammar(
                 },
                 RepetitionType::One,
             ));
-            if !is_first {
-                prop_rules.push(ProductionItem::Terminal(
-                    TerminalSymbol {
-                        value: ",".to_string(),
-                    },
-                    RepetitionType::One,
-                ));
-                prop_rules.push(ProductionItem::NonTerminal(
-                    NonTerminalSymbol {
-                        name: "ws".to_string(),
-                    },
-                    RepetitionType::One,
-                ));
-            } else {
-                is_first = false;
-            }
+
+            c = new_c;
         }
 
         let rhs_start = vec![
@@ -375,7 +377,6 @@ fn parse_json_schema_to_grammar(
         ];
 
         let rhs_end = vec![
-            ProductionItem::LineBreak,
             ProductionItem::Terminal(
                 TerminalSymbol {
                     value: "}".to_string(),
@@ -779,29 +780,12 @@ impl Grammar {
                 name: "ws".to_string(),
             },
             rhs: Production {
-                items: vec![ProductionItem::Group(
-                    Box::new(Production {
-                        items: vec![
-                            ProductionItem::CharacterSet(
-                                CharacterSet {
-                                    is_complement: false,
-                                    items: vec![
-                                        CharacterSetItem::Character(' '),
-                                        CharacterSetItem::Tab,
-                                        CharacterSetItem::NewLine,
-                                    ],
-                                },
-                                RepetitionType::One,
-                            ),
-                            ProductionItem::NonTerminal(
-                                NonTerminalSymbol {
-                                    name: "ws".to_string(),
-                                },
-                                RepetitionType::One,
-                            ),
-                        ],
-                    }),
-                    RepetitionType::ZeroOrOne,
+                items: vec![ProductionItem::CharacterSet(
+                    CharacterSet {
+                        is_complement: false,
+                        items: vec![CharacterSetItem::Character(' ')],
+                    },
+                    RepetitionType::One,
                 )],
             },
         }));
@@ -843,7 +827,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= ([ \t\n] ws)?
+ws ::= [ ]
 "#
         );
     }
@@ -878,7 +862,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= ([ \t\n] ws)?
+ws ::= [ ]
 "#
         );
     }
@@ -913,7 +897,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= ([ \t\n] ws)?
+ws ::= [ ]
 "#
         );
     }
@@ -953,11 +937,7 @@ ws ::= ([ \t\n] ws)?
 symbol1-a-value ::= boolean ws
 symbol2-b-value ::= number ws
 symbol3-c-value ::= string ws
-root ::= "{" ws 
- "a" ws ":" ws symbol2-a-value 
- "b" ws ":" ws symbol3-b-value "," ws 
- "c" ws ":" ws symbol4-c-value "," ws 
- "}" ws
+root ::= "{" ws "a" ws ":" ws symbol1-a-value "," ws "b" ws ":" ws symbol2-b-value "," ws "c" ws ":" ws symbol3-c-value "}" ws
 
 ###############################
 # Primitive value type symbols
@@ -966,7 +946,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= ([ \t\n] ws)?
+ws ::= [ ]
 "#
         )
     }
