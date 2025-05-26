@@ -1024,9 +1024,13 @@ impl Grammar {
                 items: vec![ProductionItem::CharacterSet(
                     CharacterSet {
                         is_complement: false,
-                        items: vec![CharacterSetItem::Character(' ')],
+                        items: vec![
+                            CharacterSetItem::Character(' '),
+                            CharacterSetItem::Tab,
+                            CharacterSetItem::NewLine,
+                        ],
                     },
-                    RepetitionType::One,
+                    RepetitionType::ZeroOrMore,
                 )],
             },
         }));
@@ -1068,7 +1072,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#
         );
     }
@@ -1103,7 +1107,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#
         );
     }
@@ -1138,7 +1142,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#
         );
     }
@@ -1187,7 +1191,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#
         )
     }
@@ -1250,7 +1254,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#
         )
     }
@@ -1304,7 +1308,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#,
         )
     }
@@ -1340,7 +1344,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#
         )
     }
@@ -1372,7 +1376,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#
         )
     }
@@ -1404,7 +1408,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#
         )
     }
@@ -1436,7 +1440,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#
         )
     }
@@ -1472,7 +1476,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#
         )
     }
@@ -1563,7 +1567,7 @@ null ::= "null" ws
 boolean ::= "true" | "false" ws
 string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-ws ::= [ ]
+ws ::= [ \t\n]*
 "#
         )
     }
