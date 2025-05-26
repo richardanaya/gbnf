@@ -342,7 +342,7 @@ fn parse_json_schema_to_grammar(
                         None => {
                             // if its not enum , probably constant value
 
-                            match value.get("value") {
+                            match value.get("const") {
                                 Some(v) => {
                                     if v.is_string() {
                                         let v_as_string = match v.as_str() {
@@ -1350,7 +1350,7 @@ ws ::= [ ]
         let schema = r#"
         {
          "$schema": "https://json-schema.org/draft/2019-09/schema",
-         "value": "red"
+         "const": "red"
      }
                  "#;
         let g = Grammar::from_json_schema(schema).unwrap();
@@ -1382,7 +1382,7 @@ ws ::= [ ]
         let schema = r#"
         {
          "$schema": "https://json-schema.org/draft/2019-09/schema",
-         "value": 42
+         "const": 42
      }
                  "#;
         let g = Grammar::from_json_schema(schema).unwrap();
@@ -1414,7 +1414,7 @@ ws ::= [ ]
         let schema = r#"
         {
          "$schema": "https://json-schema.org/draft/2019-09/schema",
-         "value": true
+         "const": true
      }
                  "#;
         let g = Grammar::from_json_schema(schema).unwrap();
@@ -1506,7 +1506,7 @@ ws ::= [ ]
                             "type": "object",
                             "properties": {
                                 "type": {
-                                    "value": "hugging_face"
+                                    "const": "hugging_face"
                                 },
                                 "name": {
                                     "type": "string"
@@ -1517,7 +1517,7 @@ ws ::= [ ]
                             "type": "object",
                             "properties": {
                                 "type": {
-                                    "value": "openai"
+                                    "const": "openai"
                                 }
                             }
                         }
