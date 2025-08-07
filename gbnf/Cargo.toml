@@ -1,8 +1,8 @@
 [package]
 name = "gbnf"
-version = "0.2.1"
-edition = "2021"
-description = "A libray for working with GBNF"
+version = "0.2.2"
+edition = "2024"
+description = "A library for working with GBNF"
 license = "MIT"
 readme = "../README.md"
 
