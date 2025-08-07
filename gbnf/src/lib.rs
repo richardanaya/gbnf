@@ -455,6 +455,26 @@ fn parse_json_schema_to_grammar(
                 ],
             },
         }));
+    } else if t == "integer" {
+        g.items.push(GrammarItem::Rule(Rule {
+            lhs: NonTerminalSymbol { name },
+            rhs: Production {
+                items: vec![
+                    ProductionItem::NonTerminal(
+                        NonTerminalSymbol {
+                            name: "integer".to_string(),
+                        },
+                        RepetitionType::One,
+                    ),
+                    ProductionItem::NonTerminal(
+                        NonTerminalSymbol {
+                            name: "ws".to_string(),
+                        },
+                        RepetitionType::One,
+                    ),
+                ],
+            },
+        }));
     } else if t == "string" {
         g.items.push(GrammarItem::Rule(Rule {
             lhs: NonTerminalSymbol { name },
@@ -1006,6 +1026,80 @@ impl Grammar {
                             ],
                         }),
                         RepetitionType::ZeroOrOne,
+                    ),
+                    ProductionItem::NonTerminal(
+                        NonTerminalSymbol {
+                            name: "ws".to_string(),
+                        },
+                        RepetitionType::One,
+                    ),
+                ],
+            },
+        }));
+        g.items.push(GrammarItem::Rule(Rule {
+            lhs: NonTerminalSymbol {
+                name: "integer".to_string(),
+            },
+            rhs: Production {
+                items: vec![
+                    ProductionItem::Group(
+                        Box::new(Production {
+                            items: vec![
+                                ProductionItem::Terminal(
+                                    TerminalSymbol {
+                                        value: "-".to_string(),
+                                    },
+                                    RepetitionType::ZeroOrOne,
+                                ),
+                                ProductionItem::Group(
+                                    Box::new(Production {
+                                        items: vec![ProductionItem::OneOf(vec![
+                                            Production {
+                                                items: vec![ProductionItem::CharacterSet(
+                                                    CharacterSet {
+                                                        is_complement: false,
+                                                        items: vec![
+                                                            CharacterSetItem::CharacterRange(
+                                                                '0', '9',
+                                                            ),
+                                                        ],
+                                                    },
+                                                    RepetitionType::One,
+                                                )],
+                                            },
+                                            Production {
+                                                items: vec![
+                                                    ProductionItem::CharacterSet(
+                                                        CharacterSet {
+                                                            is_complement: false,
+                                                            items: vec![
+                                                                CharacterSetItem::CharacterRange(
+                                                                    '1', '9',
+                                                                ),
+                                                            ],
+                                                        },
+                                                        RepetitionType::One,
+                                                    ),
+                                                    ProductionItem::CharacterSet(
+                                                        CharacterSet {
+                                                            is_complement: false,
+                                                            items: vec![
+                                                                CharacterSetItem::CharacterRange(
+                                                                    '0', '9',
+                                                                ),
+                                                            ],
+                                                        },
+                                                        RepetitionType::ZeroOrMore,
+                                                    ),
+                                                ],
+                                            },
+                                        ])],
+                                    }),
+                                    RepetitionType::One,
+                                ),
+                            ],
+                        }),
+                        RepetitionType::One,
                     ),
                     ProductionItem::NonTerminal(
                         NonTerminalSymbol {
