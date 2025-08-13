@@ -571,7 +571,7 @@ fn parse_json_schema_to_grammar(
         let mut is_first = true;
         for (key, value) in properties.as_object().unwrap() {
             let new_c =
-                parse_json_schema_to_grammar(value, g, format!("symbol{}-{}-value", c, key), c)?;
+                parse_json_schema_to_grammar(value, g, format!("symbol{}-{}-value", c, key.replace("_", "-")), c)?;
             if !is_first {
                 prop_rules.push(ProductionItem::Terminal(
                     TerminalSymbol {
@@ -614,7 +614,7 @@ fn parse_json_schema_to_grammar(
             ));
             prop_rules.push(ProductionItem::NonTerminal(
                 NonTerminalSymbol {
-                    name: format!("symbol{}-{}-value", c, key),
+                    name: format!("symbol{}-{}-value", c, key.replace("_", "-")),
                 },
                 RepetitionType::One,
             ));
