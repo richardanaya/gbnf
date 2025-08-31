@@ -231,10 +231,7 @@ impl Grammar {
     pub fn from_json_schema(schema: &str) -> Result<Grammar, JsonSchemaParseError> {
         let mut g = Grammar { items: vec![] };
         // parse json
-        let json = match serde_json::from_str::<serde_json::Value>(schema) {
-            Ok(json) => json,
-            Err(_) => return Err(JsonSchemaParseError::Failed),
-        };
+        let json = serde_json::from_str::<serde_json::Value>(schema)?;
 
         // add $id, $schema, title as commments at top of file
         g.items.push(GrammarItem::Comment(
