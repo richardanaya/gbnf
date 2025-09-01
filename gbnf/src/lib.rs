@@ -36,6 +36,14 @@ pub enum RepetitionType {
     ZeroOrOne,
     // [a-z]
     One,
+    // [a-z]{m}
+    Exact(usize),
+    // [a-z]{m,}
+    AtLeast(usize),
+    // [a-z]{m,n},
+    Between((usize, usize)),
+    // [a-z]{0,n}
+    AtMost(usize)
 }
 
 #[derive(Clone, Debug)]
@@ -156,6 +164,10 @@ impl Display for RepetitionType {
             RepetitionType::OneOrMore => write!(f, "+"),
             RepetitionType::ZeroOrOne => write!(f, "?"),
             RepetitionType::One => write!(f, ""),
+            RepetitionType::Exact(num) => write!(f, "{{{num}}}"),
+            RepetitionType::AtLeast(num) => write!(f, "{{{num},}}"),
+            RepetitionType::Between((a,b)) => write!(f, "{{{a},{b}}}"),
+            RepetitionType::AtMost(num) => write!(f, "{{0,{num}}}"),
         }
     }
 }
