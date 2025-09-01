@@ -1,6 +1,8 @@
+use std::{primitive, str::FromStr};
+
 use crate::{
-    Grammar, GrammarItem, NonTerminalSymbol, Production, ProductionItem, RepetitionType, Rule,
-    TerminalSymbol,
+    CharacterSet, CharacterSetItem, Grammar, GrammarItem, NonTerminalSymbol, Production,
+    ProductionItem, RepetitionType, Rule, TerminalSymbol,
 };
 use thiserror::Error;
 
@@ -12,7 +14,9 @@ pub enum JsonSchemaParseError {
         "failed find schema information, if you are sure the schema conforms to the json schema spec, please open a bug report!"
     )]
     UnknownSchemaType,
-    #[error("the value with name `{0}` is expected to be of type array but isn't, can not create grammar")]
+    #[error(
+        "the value with name `{0}` is expected to be of type array but isn't, can not create grammar"
+    )]
     ExpectedValueWithTypeArray(String),
     #[error("array with name `{0}` has no items declared, can not create grammar")]
     ArrayTypeWithoutItems(String),
@@ -22,8 +26,12 @@ pub enum JsonSchemaParseError {
     ObjectTypeWithoutProperties(String),
     #[error("failed to parse constant json value as type `{0}`")]
     ConstParseError(String),
-    #[error("failed to find constant json value, if you think this might be a bug please open a bug report!")]
-    UnknownConstantValueType
+    #[error(
+        "failed to find constant json value, if you think this might be a bug please open a bug report!"
+    )]
+    UnknownConstantValueType,
+    #[error("unknown string formatting, no grammar has been implemented for `{0}` yet!")]
+    UnknownStringFormat(String),
 }
 
 fn create_boolean_grammar_item(name: String) -> GrammarItem {
@@ -114,6 +122,114 @@ fn create_simple_string_grammar_item(name: String) -> GrammarItem {
     })
 }
 
+#[derive(Debug, strum::IntoStaticStr, strum::EnumString)]
+#[strum(serialize_all = "kebab-case")]
+enum JsonSchemaStringFormat {
+    Date,
+}
+
+impl JsonSchemaStringFormat {
+    pub fn to_grammar_rule(&self) -> (NonTerminalSymbol, Production) {
+        match self {
+            JsonSchemaStringFormat::Date => (
+                NonTerminalSymbol {
+                    name: "date".to_string(),
+                },
+                Production {
+                    items: vec![
+                        ProductionItem::Terminal(
+                            TerminalSymbol {
+                                value: "\\\"".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                        ProductionItem::CharacterSet(
+                            CharacterSet {
+                                is_complement: false,
+                                items: vec![CharacterSetItem::CharacterRange('0', '9')],
+                            },
+                            RepetitionType::Exact(4),
+                        ),
+                        ProductionItem::Terminal(
+                            TerminalSymbol {
+                                value: "-".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                        ProductionItem::CharacterSet(
+                            CharacterSet {
+                                is_complement: false,
+                                items: vec![CharacterSetItem::CharacterRange('0', '9')],
+                            },
+                            RepetitionType::Exact(2),
+                        ),
+                        ProductionItem::Terminal(
+                            TerminalSymbol {
+                                value: "-".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                        ProductionItem::CharacterSet(
+                            CharacterSet {
+                                is_complement: false,
+                                items: vec![CharacterSetItem::CharacterRange('0', '9')],
+                            },
+                            RepetitionType::Exact(2),
+                        ),
+                        ProductionItem::Terminal(
+                            TerminalSymbol {
+                                value: "\\\"".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                    ],
+                },
+            ),
+        }
+    }
+}
+
+fn display_string_grammar_item(
+    name: String,
+    g: &mut Grammar,
+    value: &serde_json::Value,
+) -> Result<GrammarItem, JsonSchemaParseError> {
+    if let Some(string_format) = value.get("format") {
+        if let Ok(format_type) = JsonSchemaStringFormat::from_str(
+            string_format
+                .as_str()
+                .ok_or(JsonSchemaParseError::ConstParseError("string".to_string()))?,
+        ) {
+            let (term_sym, prod) = format_type.to_grammar_rule();
+            let primitive_rule = GrammarItem::Rule(Rule {
+                lhs: term_sym.clone(),
+                rhs: prod,
+            });
+            g.items.push(primitive_rule);
+            Ok(GrammarItem::Rule(Rule {
+                lhs: NonTerminalSymbol { name },
+                rhs: Production {
+                    items: vec![
+                        ProductionItem::NonTerminal(term_sym, RepetitionType::One),
+                        ProductionItem::NonTerminal(
+                            NonTerminalSymbol {
+                                name: "ws".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                    ],
+                },
+            }))
+        } else {
+            Err(JsonSchemaParseError::UnknownStringFormat(
+                string_format.as_str().unwrap().to_string(),
+            ))
+        }
+    } else {
+        Ok(create_simple_string_grammar_item(name))
+    }
+}
+
 fn create_array_grammar_items(
     value: &serde_json::Value,
     g: &mut Grammar,
@@ -193,7 +309,11 @@ fn create_one_of_grammar_rules(
     name: String,
     c: &mut usize,
 ) -> Result<GrammarItem, JsonSchemaParseError> {
-    let one_of_array = value.as_array().ok_or(JsonSchemaParseError::ExpectedValueWithTypeArray(name.clone()))?;
+    let one_of_array = value
+        .as_array()
+        .ok_or(JsonSchemaParseError::ExpectedValueWithTypeArray(
+            name.clone(),
+        ))?;
 
     if one_of_array.is_empty() {
         return Err(JsonSchemaParseError::ArrayTypeWithoutItems(name));
@@ -249,7 +369,11 @@ fn create_enum_grammar_items(
     value: &serde_json::Value,
     name: String,
 ) -> Result<GrammarItem, JsonSchemaParseError> {
-    let enum_array = value.as_array().ok_or(JsonSchemaParseError::ExpectedValueWithTypeArray(name.clone()))?;
+    let enum_array = value
+        .as_array()
+        .ok_or(JsonSchemaParseError::ExpectedValueWithTypeArray(
+            name.clone(),
+        ))?;
 
     if enum_array.is_empty() {
         return Err(JsonSchemaParseError::EnumTypeWithoutVariants(name));
@@ -267,7 +391,7 @@ fn create_enum_grammar_items(
                 )],
             });
         } else {
-            return Err(JsonSchemaParseError::ConstParseError("string".to_string()))
+            return Err(JsonSchemaParseError::ConstParseError("string".to_string()));
         }
     }
     // add production for enum
@@ -464,7 +588,8 @@ pub(crate) fn parse_json_schema_to_grammar(
         } else if t == "integer" {
             g.items.push(create_integer_grammar_item(name));
         } else if t == "string" {
-            g.items.push(create_simple_string_grammar_item(name));
+            let rule = display_string_grammar_item(name, g, value)?;
+            g.items.push(rule);
         } else if t == "array" {
             let rule = create_array_grammar_items(value, g, name, &mut c)?;
             g.items.push(rule);
