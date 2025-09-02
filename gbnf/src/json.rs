@@ -189,7 +189,7 @@ impl JsonSchemaStringFormat {
     }
 }
 
-fn display_string_grammar_item(
+fn dispatch_string_grammar_item(
     name: String,
     g: &mut Grammar,
     value: &serde_json::Value,
@@ -201,11 +201,9 @@ fn display_string_grammar_item(
                 .ok_or(JsonSchemaParseError::ConstParseError("string".to_string()))?,
         ) {
             let (term_sym, prod) = format_type.to_grammar_rule();
-            let primitive_rule = GrammarItem::Rule(Rule {
-                lhs: term_sym.clone(),
-                rhs: prod,
-            });
-            g.items.push(primitive_rule);
+            if !g.recurring_items.contains_key(&term_sym) {
+                g.recurring_items.insert(term_sym.clone(), prod);
+            }
             Ok(GrammarItem::Rule(Rule {
                 lhs: NonTerminalSymbol { name },
                 rhs: Production {
@@ -588,7 +586,7 @@ pub(crate) fn parse_json_schema_to_grammar(
         } else if t == "integer" {
             g.items.push(create_integer_grammar_item(name));
         } else if t == "string" {
-            let rule = display_string_grammar_item(name, g, value)?;
+            let rule = dispatch_string_grammar_item(name, g, value)?;
             g.items.push(rule);
         } else if t == "array" {
             let rule = create_array_grammar_items(value, g, name, &mut c)?;

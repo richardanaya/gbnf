@@ -1,14 +1,15 @@
+use json::JsonSchemaParseError;
+use json::parse_json_schema_to_grammar;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use json::parse_json_schema_to_grammar;
-use json::JsonSchemaParseError;
 
 pub mod json;
 
 // Represents a non-terminal symbol in the grammar.
 // examples: root, expr, term, ident, ws, num
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct NonTerminalSymbol {
     pub name: String,
 }
@@ -43,7 +44,7 @@ pub enum RepetitionType {
     // [a-z]{m,n},
     Between((usize, usize)),
     // [a-z]{0,n}
-    AtMost(usize)
+    AtMost(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -103,10 +104,39 @@ pub enum GrammarItem {
     Rule(Rule),
 }
 
+impl Display for GrammarItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            GrammarItem::LineBreak => {
+                write!(f, "\n")
+            }
+            GrammarItem::Comment(comment) => {
+                write!(f, "#{}\n", comment)
+            }
+            GrammarItem::Rule(rule) => {
+                write!(f, "{} ::= {}\n", rule.lhs, rule.rhs)
+            }
+        }
+    }
+}
+
 // Represents the entire grammar.
 #[derive(Clone, Debug)]
 pub struct Grammar {
     pub items: Vec<GrammarItem>,
+    // this container will later be linearized as rules, its purpose is
+    // to hold grammar rules that occur multiple times to avoid duplicating
+    // rules. This is very relevant for `primitive` type definitions
+    pub recurring_items: BTreeMap<NonTerminalSymbol, Production>,
+}
+
+impl Default for Grammar {
+    fn default() -> Self {
+        Self {
+            items: Default::default(),
+            recurring_items: Default::default(),
+        }
+    }
 }
 
 impl Display for NonTerminalSymbol {
@@ -166,7 +196,7 @@ impl Display for RepetitionType {
             RepetitionType::One => write!(f, ""),
             RepetitionType::Exact(num) => write!(f, "{{{num}}}"),
             RepetitionType::AtLeast(num) => write!(f, "{{{num},}}"),
-            RepetitionType::Between((a,b)) => write!(f, "{{{a},{b}}}"),
+            RepetitionType::Between((a, b)) => write!(f, "{{{a},{b}}}"),
             RepetitionType::AtMost(num) => write!(f, "{{0,{num}}}"),
         }
     }
@@ -222,26 +252,23 @@ impl Display for Grammar {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut s = String::new();
         for item in &self.items {
-            match item {
-                GrammarItem::LineBreak => {
-                    s.push('\n');
-                }
-                GrammarItem::Comment(comment) => {
-                    s.push_str(&format!("#{}\n", comment));
-                }
-                GrammarItem::Rule(rule) => {
-                    s.push_str(&format!("{} ::= {}\n", rule.lhs, rule.rhs));
-                }
-            }
+            s.push_str(&item.to_string())
+        }
+        for item in self.recurring_items.clone().into_iter().map(|(nts, prod)| {
+            GrammarItem::Rule(Rule {
+                lhs: nts,
+                rhs: prod,
+            })
+        }) {
+            s.push_str(&item.to_string());
         }
         write!(f, "{}", s)
     }
 }
 
-
 impl Grammar {
     pub fn from_json_schema(schema: &str) -> Result<Grammar, JsonSchemaParseError> {
-        let mut g = Grammar { items: vec![] };
+        let mut g = Grammar::default();
         // parse json
         let json = serde_json::from_str::<serde_json::Value>(schema)?;
 
@@ -288,11 +315,11 @@ impl Grammar {
         g.items.push(GrammarItem::Comment(
             "##############################".to_string(),
         ));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "null".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![
                     ProductionItem::Terminal(
                         TerminalSymbol {
@@ -308,12 +335,12 @@ impl Grammar {
                     ),
                 ],
             },
-        }));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        );
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "boolean".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![
                     ProductionItem::OneOf(vec![
                         Production {
@@ -341,12 +368,12 @@ impl Grammar {
                     ),
                 ],
             },
-        }));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        );
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "string".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![
                     ProductionItem::Terminal(
                         TerminalSymbol {
@@ -476,12 +503,12 @@ impl Grammar {
                     ),
                 ],
             },
-        }));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        );
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "number".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![
                     ProductionItem::Group(
                         Box::new(Production {
@@ -604,12 +631,12 @@ impl Grammar {
                     ),
                 ],
             },
-        }));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        );
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "integer".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![
                     ProductionItem::Group(
                         Box::new(Production {
@@ -678,12 +705,12 @@ impl Grammar {
                     ),
                 ],
             },
-        }));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        );
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "ws".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![ProductionItem::CharacterSet(
                     CharacterSet {
                         is_complement: false,
@@ -696,7 +723,7 @@ impl Grammar {
                     RepetitionType::ZeroOrMore,
                 )],
             },
-        }));
+        );
         Ok(g)
     }
 }
@@ -731,11 +758,11 @@ root ::= boolean ws
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#
         );
@@ -767,11 +794,11 @@ root ::= number ws
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#
         );
@@ -803,11 +830,11 @@ root ::= string ws
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#
         );
@@ -853,11 +880,11 @@ root ::= "{" ws "\"a\"" ws ":" ws symbol1-a-value "," ws "\"b\"" ws ":" ws symbo
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#
         )
@@ -917,11 +944,11 @@ root ::= "{" ws "\"a\"" ws ":" ws symbol1-a-value "," ws "\"b\"" ws ":" ws symbo
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#
         )
@@ -972,11 +999,11 @@ root ::= symbol-1-oneof-0 | symbol-5-oneof-1
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#,
         )
@@ -1009,11 +1036,11 @@ root ::= "\"red\"" | "\"amber\"" | "\"green\""
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#
         )
@@ -1042,11 +1069,11 @@ root ::= "\"red\""
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#
         )
@@ -1075,11 +1102,11 @@ root ::= "42"
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#
         )
@@ -1108,11 +1135,11 @@ root ::= "true"
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#
         )
@@ -1145,11 +1172,11 @@ root ::= "[" ws symbol1-item* ws "]" ws
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#
         )
@@ -1237,11 +1264,11 @@ root ::= "{" ws "\"name\"" ws ":" ws symbol1-name-value "," ws "\"age\"" ws ":" 
 ###############################
 # Primitive value type symbols
 ###############################
-null ::= "null" ws
 boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
 ws ::= [ \t\n]*
 "#
         )
@@ -1276,6 +1303,7 @@ ws ::= [ \t\n]*
                     ])],
                 },
             })],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(s, "root ::= \"yes\" | \"no\"\n");
@@ -1329,6 +1357,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(
@@ -1415,6 +1444,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(
@@ -1573,6 +1603,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(
@@ -1809,6 +1840,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(
@@ -2046,6 +2078,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(
@@ -2113,6 +2146,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
 
         let s = g.to_string();
@@ -2731,6 +2765,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
 
         let s = g.to_string();
