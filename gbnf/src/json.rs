@@ -290,7 +290,7 @@ fn create_object_grammar_items(
         let mut is_first = true;
         for (key, value) in properties.as_object().unwrap() {
             let new_c =
-                parse_json_schema_to_grammar(value, g, format!("symbol{}-{}-value", c, key), *c)?;
+                parse_json_schema_to_grammar(value, g, format!("symbol{}-{}-value", c, key.replace("_", "-")), *c)?;
             if !is_first {
                 prop_rules.push(ProductionItem::Terminal(
                     TerminalSymbol {
@@ -333,7 +333,7 @@ fn create_object_grammar_items(
             ));
             prop_rules.push(ProductionItem::NonTerminal(
                 NonTerminalSymbol {
-                    name: format!("symbol{}-{}-value", c, key),
+                    name: format!("symbol{}-{}-value", c, key.replace("_", "-")),
                 },
                 RepetitionType::One,
             ));

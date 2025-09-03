@@ -2727,4 +2727,45 @@ ws ::= [ \t\n]*
             "root ::= object\nvalue ::= object | array | string | number | (\"true\" | \"false\" | \"null\") ws\nobject ::= \"{\" ws (string \":\" ws value (\",\" ws string \":\" ws value)*)? \"}\" ws\narray ::= \"[\" ws (value (\",\" ws value)*)? \"]\" ws\nstring ::= \"\\\"\" ([^\"\\\\] | \"\\\\\" ([\"\\\\/bfnrt] | \"u\" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* \"\\\"\" ws\nnumber ::= (\"-\"? ([0-9] | [1-9] [0-9]*)) (\".\" [0-9]+)? ([eE] [-+]? [0-9]+)? ws\n# Optional space: by convention, applied in this grammar after literal chars when allowed\nws ::= ([ \\t\\n] ws)?\n"
         );
     }
+
+    #[test]
+    fn json_schema_property_underscores_are_sanitized_to_dashes() {
+        // schema with three properties containing underscores
+        let schema = r#"
+        {
+            "$schema": "https://json-schema.org/draft/2019-09/schema",
+            "type": "object",
+            "properties": {
+                "text_1": { "type": "string" },
+                "text__1": { "type": "string" },
+                "__text__": { "type": "string" }
+            }
+        }
+        "#;
+        let g = Grammar::from_json_schema(schema).unwrap();
+        let s = g.to_string();
+
+        let expected = r#"################################################
+# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
+# $schema: https://json-schema.org/draft/2019-09/schema
+################################################
+
+symbol1-text-1-value ::= string ws
+symbol2-text--1-value ::= string ws
+symbol3---text---value ::= string ws
+root ::= "{" ws "\"text_1\"" ws ":" ws symbol1-text-1-value "," ws "\"text__1\"" ws ":" ws symbol2-text--1-value "," ws "\"__text__\"" ws ":" ws symbol3---text---value "}" ws
+
+###############################
+# Primitive value type symbols
+###############################
+null ::= "null" ws
+boolean ::= "true" | "false" ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+ws ::= [ \t\n]*
+"#;
+        
+        pretty_assertions::assert_eq!(s, expected);
+    }
 }
