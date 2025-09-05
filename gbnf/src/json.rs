@@ -581,7 +581,17 @@ pub(crate) fn parse_json_schema_to_grammar(
     c += 1;
 
     // if its a basic type, get the type name
-    if let Some(t) = value.get("type") {
+    if let Some(one_of) = value.get("oneOf") {
+        let rule = create_one_of_grammar_rules(one_of, g, name, &mut c)?;
+        g.items.push(rule);
+    } else if let Some(enum_val) = value.get("enum") {
+        let rule = create_enum_grammar_items(enum_val, name)?;
+        g.items.push(rule);
+    } else if let Some(const_val) = value.get("const") {
+        // if its not enum , probably constant value
+        let rule = create_const_grammar_item(const_val, name)?;
+        g.items.push(rule);
+    } else if let Some(t) = value.get("type") {
         if t == "boolean" {
             g.items.push(create_boolean_grammar_item(name));
         } else if t == "number" {
@@ -599,20 +609,7 @@ pub(crate) fn parse_json_schema_to_grammar(
             g.items.push(rule);
         }
     } else {
-        // if its not a basic type, probably "oneOf"
-        if let Some(one_of) = value.get("oneOf") {
-            let rule = create_one_of_grammar_rules(one_of, g, name, &mut c)?;
-            g.items.push(rule);
-        } else if let Some(enum_val) = value.get("enum") {
-            let rule = create_enum_grammar_items(enum_val, name)?;
-            g.items.push(rule);
-        } else if let Some(const_val) = value.get("const") {
-            // if its not enum , probably constant value
-            let rule = create_const_grammar_item(const_val, name)?;
-            g.items.push(rule);
-        } else {
-            return Err(JsonSchemaParseError::UnknownSchemaType);
-        }
+        return Err(JsonSchemaParseError::UnknownSchemaType);
     }
 
     Ok(c)
