@@ -1,4 +1,4 @@
-use std::{primitive, str::FromStr};
+use std::str::FromStr;
 
 use crate::{
     CharacterSet, CharacterSetItem, Grammar, GrammarItem, NonTerminalSymbol, Production,
@@ -724,6 +724,42 @@ root ::= string ws
 # Primitive value type symbols
 ###############################
 boolean ::= "true" | "false" ws
+integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
+ws ::= [ \t\n]*
+"#
+        );
+    }
+
+    #[test]
+    fn simple_json_schema_date() {
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        #[schemars(extend("$id" = "https://example.com/schema.json"))]
+        struct DateTest {
+            date: chrono::NaiveDate,
+        }
+        let g = Grammar::from_json_schema_value(&schema_for!(DateTest).to_value()).unwrap();
+        let s = g.to_string();
+        pretty_assertions::assert_eq!(
+            s,
+            r#"################################################
+# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
+# $id: https://example.com/schema.json
+# $schema: https://json-schema.org/draft/2020-12/schema
+# title: DateTest
+################################################
+
+symbol1-date-value ::= date ws
+root ::= "{" ws "\"date\"" ws ":" ws symbol1-date-value "}" ws
+
+###############################
+# Primitive value type symbols
+###############################
+boolean ::= "true" | "false" ws
+date ::= "\"" [0-9]{4} "-" [0-9]{2} "-" [0-9]{2} "\""
 integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
 null ::= "null" ws
 number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
