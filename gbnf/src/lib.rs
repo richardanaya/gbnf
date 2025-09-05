@@ -268,9 +268,11 @@ impl Display for Grammar {
 
 impl Grammar {
     pub fn from_json_schema(schema: &str) -> Result<Grammar, JsonSchemaParseError> {
-        let mut g = Grammar::default();
-        // parse json
         let json = serde_json::from_str::<serde_json::Value>(schema)?;
+        Grammar::from_json_schema_value(&json)
+    }
+    pub fn from_json_schema_value(schema: &serde_json::Value) -> Result<Grammar, JsonSchemaParseError> {
+        let mut g = Grammar::default();
 
         // add $id, $schema, title as commments at top of file
         g.items.push(GrammarItem::Comment(
@@ -279,19 +281,19 @@ impl Grammar {
         g.items.push(GrammarItem::Comment(
             " DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR".to_string(),
         ));
-        if let Some(id) = json.get("$id") {
+        if let Some(id) = schema.get("$id") {
             g.items.push(GrammarItem::Comment(format!(
                 " $id: {}",
                 id.as_str().unwrap_or("")
             )));
         }
-        if let Some(schema) = json.get("$schema") {
+        if let Some(schema) = schema.get("$schema") {
             g.items.push(GrammarItem::Comment(format!(
                 " $schema: {}",
                 schema.as_str().unwrap_or("")
             )));
         }
-        if let Some(title) = json.get("title") {
+        if let Some(title) = schema.get("title") {
             g.items.push(GrammarItem::Comment(format!(
                 " title: {}",
                 title.as_str().unwrap_or("")
@@ -302,7 +304,7 @@ impl Grammar {
         ));
         g.items.push(GrammarItem::LineBreak);
 
-        parse_json_schema_to_grammar(&json, &mut g, "root".to_string(), 0)?;
+        parse_json_schema_to_grammar(schema, &mut g, "root".to_string(), 0)?;
 
         // add comment for primitives
         g.items.push(GrammarItem::LineBreak);

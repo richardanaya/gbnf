@@ -621,19 +621,22 @@ pub(crate) fn parse_json_schema_to_grammar(
 
 #[cfg(test)]
 mod json_schema_test{
+    use schemars::{schema_for, JsonSchema};
     use crate::Grammar;
 
     #[test]
     fn simple_json_schema_boolean() {
-        let schema = r#"
-    {
-        "$id": "https://example.com/enumerated-values.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Enumerated Values",
-        "type": "boolean"
-    }
-            "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        #[schemars(
+            title = "Enumerated Values",
+            extend(
+                "$id"="https://example.com/enumerated-values.schema.json"
+            )
+        )]
+        struct TestSchema(bool);
+
+        let g = Grammar::from_json_schema_value(&schema_for!(TestSchema).to_value()).unwrap();
         let s = g.to_string();
         pretty_assertions::assert_eq!(
             s,
@@ -661,15 +664,16 @@ ws ::= [ \t\n]*
 
     #[test]
     fn simple_json_schema_number() {
-        let schema = r#"
-    {
-        "$id": "https://example.com/enumerated-values.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Enumerated Values",
-        "type": "number"
-    }
-            "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        #[schemars(
+            title = "Enumerated Values",
+            extend(
+                "$id"="https://example.com/enumerated-values.schema.json"
+            )
+        )]
+        struct TestSchema(f32);
+        let g = Grammar::from_json_schema_value(&schema_for!(TestSchema).to_value()).unwrap();
         let s = g.to_string();
         pretty_assertions::assert_eq!(
             s,
@@ -697,15 +701,16 @@ ws ::= [ \t\n]*
 
     #[test]
     fn simple_json_schema_string() {
-        let schema = r#"
-    {
-        "$id": "https://example.com/enumerated-values.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Enumerated Values",
-        "type": "string"
-    }
-            "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        #[schemars(
+            title = "Enumerated Values",
+            extend(
+                "$id"="https://example.com/enumerated-values.schema.json"
+            )
+        )]
+        struct TestSchema(String);
+        let g = Grammar::from_json_schema_value(&schema_for!(TestSchema).to_value()).unwrap();
         let s = g.to_string();
         pretty_assertions::assert_eq!(
             s,
@@ -733,26 +738,20 @@ ws ::= [ \t\n]*
 
     #[test]
     fn simple_json_schema_basic_object() {
-        let schema = r#"
-    {
-        "$id": "https://example.com/enumerated-values.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Enumerated Values",
-        "type": "object",
-        "properties": {
-            "a": {
-                "type": "boolean"
-            },
-            "b": {
-                "type": "number"
-            },
-            "c": {
-                "type": "string"
-            }
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        #[schemars(
+            title = "Enumerated Values",
+            extend(
+                "$id"="https://example.com/enumerated-values.schema.json"
+            )
+        )]
+        struct TestSchema{
+            a: bool,
+            b: f32,
+            c: String
         }
-    }
-            "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
+        let g = Grammar::from_json_schema_value(&schema_for!(TestSchema).to_value()).unwrap();
         let s = g.to_string();
         pretty_assertions::assert_eq!(
             s,
@@ -783,37 +782,28 @@ ws ::= [ \t\n]*
 
     #[test]
     fn simple_json_schema_nested_object() {
-        let schema = r#"
-    {
-        "$id": "https://example.com/enumerated-values.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Enumerated Values",
-        "type": "object",
-        "properties": {
-            "a": {
-                "type": "boolean"
-            },
-            "b": {
-                "type": "number"
-            },
-            "c": {
-                "type": "object",
-                "properties": {
-                    "x": {
-                        "type": "boolean"
-                    },
-                    "y": {
-                        "type": "number"
-                    },
-                    "z": {
-                        "type": "string"
-                    }
-                }
-            }
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        #[schemars(inline)]
+        struct Nested{
+            x: bool,
+            y: f32,
+            z: String
         }
-    }
-            "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        #[schemars(
+            title = "Enumerated Values",
+            extend(
+                "$id"="https://example.com/enumerated-values.schema.json"
+            )
+        )]
+        struct TestSchema{
+            a: bool,
+            b: f32,
+            c: Nested
+        }
+        let g = Grammar::from_json_schema_value(&schema_for!(TestSchema).to_value()).unwrap();
         let s = g.to_string();
         pretty_assertions::assert_eq!(
             s,
@@ -871,6 +861,24 @@ ws ::= [ \t\n]*
     ]
 }
             "#;
+        //TODO Get this to work as `onfOf`, currently this results in `anyOf` being generated:
+        // https://github.com/GREsau/schemars/pull/108
+        //
+        //#[derive(JsonSchema)]
+        //#[allow(dead_code, non_snake_case)]
+        //#[schemars(inline)]
+        //struct Kind1 {
+            //firstName: String,
+            //lastName: String,
+            //sport: String
+        //}
+        //#[derive(JsonSchema)]
+        //#[allow(dead_code)]
+        //#[schemars(untagged)]
+        //enum TestSchema {
+            //Complex(Kind1),
+            //Simple(f32)
+        //}
         let g = Grammar::from_json_schema(schema).unwrap();
         let s = g.to_string();
         pretty_assertions::assert_eq!(
@@ -902,24 +910,26 @@ ws ::= [ \t\n]*
 
     #[test]
     fn simple_json_schema_enum() {
-        let schema = r#"
-        {
-         "$schema": "https://json-schema.org/draft/2019-09/schema",
-         "enum": [
-              "red",
-              "amber",
-              "green"
-         ]
-     }
-                 "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
+        #[derive(JsonSchema)]
+        #[allow(dead_code, non_camel_case_types)]
+        #[schemars(
+            title = "Enumerated Values",
+        )]
+        enum TestSchema{
+            red,
+            amber,
+            green
+        }
+        println!("{}", serde_json::to_string_pretty(&schema_for!(TestSchema).to_value()).unwrap());
+        let g = Grammar::from_json_schema_value(&schema_for!(TestSchema).to_value()).unwrap();
         let s = g.to_string();
 
         pretty_assertions::assert_eq!(
             s,
             r#"################################################
 # DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $schema: https://json-schema.org/draft/2019-09/schema
+# $schema: https://json-schema.org/draft/2020-12/schema
+# title: Enumerated Values
 ################################################
 
 root ::= "\"red\"" | "\"amber\"" | "\"green\""
@@ -939,6 +949,7 @@ ws ::= [ \t\n]*
 
     #[test]
     fn simple_json_schema_value_string() {
+        // can not be created with schemars as far as I can tell
         let schema = r#"
         {
          "$schema": "https://json-schema.org/draft/2019-09/schema",
@@ -972,6 +983,7 @@ ws ::= [ \t\n]*
 
     #[test]
     fn simple_json_schema_value_number() {
+        // can not be created with schemars as far as I can tell
         let schema = r#"
         {
          "$schema": "https://json-schema.org/draft/2019-09/schema",
@@ -1005,6 +1017,7 @@ ws ::= [ \t\n]*
 
     #[test]
     fn simple_json_schema_value_boolean() {
+        // can not be created with schemars as far as I can tell
         let schema = r#"
         {
          "$schema": "https://json-schema.org/draft/2019-09/schema",
@@ -1075,6 +1088,7 @@ ws ::= [ \t\n]*
 
     #[test]
     fn simple_json_kitchen_sink() {
+        // can not be created with schemars as far as I can tell because of `const` usage
         let schema = r#"
         {
             "$schema": "https://json-schema.org/draft/2019-09/schema",
