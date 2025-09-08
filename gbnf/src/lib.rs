@@ -1,14 +1,15 @@
+use json::JsonSchemaParseError;
+use json::parse_json_schema_to_grammar;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use json::parse_json_schema_to_grammar;
-use json::JsonSchemaParseError;
 
 pub mod json;
 
 // Represents a non-terminal symbol in the grammar.
 // examples: root, expr, term, ident, ws, num
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct NonTerminalSymbol {
     pub name: String,
 }
@@ -36,6 +37,14 @@ pub enum RepetitionType {
     ZeroOrOne,
     // [a-z]
     One,
+    // [a-z]{m}
+    Exact(usize),
+    // [a-z]{m,}
+    AtLeast(usize),
+    // [a-z]{m,n},
+    Between((usize, usize)),
+    // [a-z]{0,n}
+    AtMost(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -95,10 +104,39 @@ pub enum GrammarItem {
     Rule(Rule),
 }
 
+impl Display for GrammarItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            GrammarItem::LineBreak => {
+                write!(f, "\n")
+            }
+            GrammarItem::Comment(comment) => {
+                write!(f, "#{}\n", comment)
+            }
+            GrammarItem::Rule(rule) => {
+                write!(f, "{} ::= {}\n", rule.lhs, rule.rhs)
+            }
+        }
+    }
+}
+
 // Represents the entire grammar.
 #[derive(Clone, Debug)]
 pub struct Grammar {
     pub items: Vec<GrammarItem>,
+    // this container will later be linearized as rules, its purpose is
+    // to hold grammar rules that occur multiple times to avoid duplicating
+    // rules. This is very relevant for `primitive` type definitions
+    pub recurring_items: BTreeMap<NonTerminalSymbol, Production>,
+}
+
+impl Default for Grammar {
+    fn default() -> Self {
+        Self {
+            items: Default::default(),
+            recurring_items: Default::default(),
+        }
+    }
 }
 
 impl Display for NonTerminalSymbol {
@@ -156,6 +194,10 @@ impl Display for RepetitionType {
             RepetitionType::OneOrMore => write!(f, "+"),
             RepetitionType::ZeroOrOne => write!(f, "?"),
             RepetitionType::One => write!(f, ""),
+            RepetitionType::Exact(num) => write!(f, "{{{num}}}"),
+            RepetitionType::AtLeast(num) => write!(f, "{{{num},}}"),
+            RepetitionType::Between((a, b)) => write!(f, "{{{a},{b}}}"),
+            RepetitionType::AtMost(num) => write!(f, "{{0,{num}}}"),
         }
     }
 }
@@ -210,28 +252,27 @@ impl Display for Grammar {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut s = String::new();
         for item in &self.items {
-            match item {
-                GrammarItem::LineBreak => {
-                    s.push('\n');
-                }
-                GrammarItem::Comment(comment) => {
-                    s.push_str(&format!("#{}\n", comment));
-                }
-                GrammarItem::Rule(rule) => {
-                    s.push_str(&format!("{} ::= {}\n", rule.lhs, rule.rhs));
-                }
-            }
+            s.push_str(&item.to_string())
+        }
+        for item in self.recurring_items.clone().into_iter().map(|(nts, prod)| {
+            GrammarItem::Rule(Rule {
+                lhs: nts,
+                rhs: prod,
+            })
+        }) {
+            s.push_str(&item.to_string());
         }
         write!(f, "{}", s)
     }
 }
 
-
 impl Grammar {
     pub fn from_json_schema(schema: &str) -> Result<Grammar, JsonSchemaParseError> {
-        let mut g = Grammar { items: vec![] };
-        // parse json
         let json = serde_json::from_str::<serde_json::Value>(schema)?;
+        Grammar::from_json_schema_value(&json)
+    }
+    pub fn from_json_schema_value(schema: &serde_json::Value) -> Result<Grammar, JsonSchemaParseError> {
+        let mut g = Grammar::default();
 
         // add $id, $schema, title as commments at top of file
         g.items.push(GrammarItem::Comment(
@@ -240,19 +281,19 @@ impl Grammar {
         g.items.push(GrammarItem::Comment(
             " DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR".to_string(),
         ));
-        if let Some(id) = json.get("$id") {
+        if let Some(id) = schema.get("$id") {
             g.items.push(GrammarItem::Comment(format!(
                 " $id: {}",
                 id.as_str().unwrap_or("")
             )));
         }
-        if let Some(schema) = json.get("$schema") {
+        if let Some(schema) = schema.get("$schema") {
             g.items.push(GrammarItem::Comment(format!(
                 " $schema: {}",
                 schema.as_str().unwrap_or("")
             )));
         }
-        if let Some(title) = json.get("title") {
+        if let Some(title) = schema.get("title") {
             g.items.push(GrammarItem::Comment(format!(
                 " title: {}",
                 title.as_str().unwrap_or("")
@@ -263,7 +304,7 @@ impl Grammar {
         ));
         g.items.push(GrammarItem::LineBreak);
 
-        parse_json_schema_to_grammar(&json, &mut g, "root".to_string(), 0)?;
+        parse_json_schema_to_grammar(schema, &mut g, "root".to_string(), 0)?;
 
         // add comment for primitives
         g.items.push(GrammarItem::LineBreak);
@@ -276,11 +317,11 @@ impl Grammar {
         g.items.push(GrammarItem::Comment(
             "##############################".to_string(),
         ));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "null".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![
                     ProductionItem::Terminal(
                         TerminalSymbol {
@@ -296,12 +337,12 @@ impl Grammar {
                     ),
                 ],
             },
-        }));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        );
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "boolean".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![
                     ProductionItem::OneOf(vec![
                         Production {
@@ -329,12 +370,12 @@ impl Grammar {
                     ),
                 ],
             },
-        }));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        );
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "string".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![
                     ProductionItem::Terminal(
                         TerminalSymbol {
@@ -464,12 +505,12 @@ impl Grammar {
                     ),
                 ],
             },
-        }));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        );
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "number".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![
                     ProductionItem::Group(
                         Box::new(Production {
@@ -592,12 +633,12 @@ impl Grammar {
                     ),
                 ],
             },
-        }));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        );
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "integer".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![
                     ProductionItem::Group(
                         Box::new(Production {
@@ -666,12 +707,12 @@ impl Grammar {
                     ),
                 ],
             },
-        }));
-        g.items.push(GrammarItem::Rule(Rule {
-            lhs: NonTerminalSymbol {
+        );
+        g.recurring_items.insert(
+            NonTerminalSymbol {
                 name: "ws".to_string(),
             },
-            rhs: Production {
+            Production {
                 items: vec![ProductionItem::CharacterSet(
                     CharacterSet {
                         is_complement: false,
@@ -684,7 +725,7 @@ impl Grammar {
                     RepetitionType::ZeroOrMore,
                 )],
             },
-        }));
+        );
         Ok(g)
     }
 }
@@ -692,548 +733,6 @@ impl Grammar {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn simple_json_schema_boolean() {
-        let schema = r#"
-    {
-        "$id": "https://example.com/enumerated-values.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Enumerated Values",
-        "type": "boolean"
-    }
-            "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $id: https://example.com/enumerated-values.schema.json
-# $schema: https://json-schema.org/draft/2020-12/schema
-# title: Enumerated Values
-################################################
-
-root ::= boolean ws
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#
-        );
-    }
-
-    #[test]
-    fn simple_json_schema_number() {
-        let schema = r#"
-    {
-        "$id": "https://example.com/enumerated-values.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Enumerated Values",
-        "type": "number"
-    }
-            "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $id: https://example.com/enumerated-values.schema.json
-# $schema: https://json-schema.org/draft/2020-12/schema
-# title: Enumerated Values
-################################################
-
-root ::= number ws
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#
-        );
-    }
-
-    #[test]
-    fn simple_json_schema_string() {
-        let schema = r#"
-    {
-        "$id": "https://example.com/enumerated-values.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Enumerated Values",
-        "type": "string"
-    }
-            "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $id: https://example.com/enumerated-values.schema.json
-# $schema: https://json-schema.org/draft/2020-12/schema
-# title: Enumerated Values
-################################################
-
-root ::= string ws
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#
-        );
-    }
-
-    #[test]
-    fn simple_json_schema_basic_object() {
-        let schema = r#"
-    {
-        "$id": "https://example.com/enumerated-values.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Enumerated Values",
-        "type": "object",
-        "properties": {
-            "a": {
-                "type": "boolean"
-            },
-            "b": {
-                "type": "number"
-            },
-            "c": {
-                "type": "string"
-            }
-        }
-    }
-            "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $id: https://example.com/enumerated-values.schema.json
-# $schema: https://json-schema.org/draft/2020-12/schema
-# title: Enumerated Values
-################################################
-
-symbol1-a-value ::= boolean ws
-symbol2-b-value ::= number ws
-symbol3-c-value ::= string ws
-root ::= "{" ws "\"a\"" ws ":" ws symbol1-a-value "," ws "\"b\"" ws ":" ws symbol2-b-value "," ws "\"c\"" ws ":" ws symbol3-c-value "}" ws
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#
-        )
-    }
-
-    #[test]
-    fn simple_json_schema_nested_object() {
-        let schema = r#"
-    {
-        "$id": "https://example.com/enumerated-values.schema.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Enumerated Values",
-        "type": "object",
-        "properties": {
-            "a": {
-                "type": "boolean"
-            },
-            "b": {
-                "type": "number"
-            },
-            "c": {
-                "type": "object",
-                "properties": {
-                    "x": {
-                        "type": "boolean"
-                    },
-                    "y": {
-                        "type": "number"
-                    },
-                    "z": {
-                        "type": "string"
-                    }
-                }
-            }
-        }
-    }
-            "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $id: https://example.com/enumerated-values.schema.json
-# $schema: https://json-schema.org/draft/2020-12/schema
-# title: Enumerated Values
-################################################
-
-symbol1-a-value ::= boolean ws
-symbol2-b-value ::= number ws
-symbol4-x-value ::= boolean ws
-symbol5-y-value ::= number ws
-symbol6-z-value ::= string ws
-symbol3-c-value ::= "{" ws "\"x\"" ws ":" ws symbol4-x-value "," ws "\"y\"" ws ":" ws symbol5-y-value "," ws "\"z\"" ws ":" ws symbol6-z-value "}" ws
-root ::= "{" ws "\"a\"" ws ":" ws symbol1-a-value "," ws "\"b\"" ws ":" ws symbol2-b-value "," ws "\"c\"" ws ":" ws symbol3-c-value "}" ws
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#
-        )
-    }
-
-    #[test]
-    fn simple_json_schema_oneof() {
-        let schema = r#"
-   {
-	"$schema": "https://json-schema.org/draft/2019-09/schema",
-	"oneOf": [
-      {
-        "type" : "object",
-        "properties" : {
-            "firstName" : {
-                "type" : "string"
-            },
-            "lastName" : {
-                "type" : "string"
-            },
-            "sport" : {
-                "type" : "string"
-            }
-          }
-      },
-      {
-        "type" : "number"
-      }
-    ]
-}
-            "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $schema: https://json-schema.org/draft/2019-09/schema
-################################################
-
-symbol2-firstName-value ::= string ws
-symbol3-lastName-value ::= string ws
-symbol4-sport-value ::= string ws
-symbol-1-oneof-0 ::= "{" ws "\"firstName\"" ws ":" ws symbol2-firstName-value "," ws "\"lastName\"" ws ":" ws symbol3-lastName-value "," ws "\"sport\"" ws ":" ws symbol4-sport-value "}" ws
-symbol-5-oneof-1 ::= number ws
-root ::= symbol-1-oneof-0 | symbol-5-oneof-1
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#,
-        )
-    }
-
-    #[test]
-    fn simple_json_schema_enum() {
-        let schema = r#"
-        {
-         "$schema": "https://json-schema.org/draft/2019-09/schema",
-         "enum": [
-              "red",
-              "amber",
-              "green"
-         ]
-     }
-                 "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $schema: https://json-schema.org/draft/2019-09/schema
-################################################
-
-root ::= "\"red\"" | "\"amber\"" | "\"green\""
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#
-        )
-    }
-
-    #[test]
-    fn simple_json_schema_value_string() {
-        let schema = r#"
-        {
-         "$schema": "https://json-schema.org/draft/2019-09/schema",
-         "const": "red"
-     }
-                 "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $schema: https://json-schema.org/draft/2019-09/schema
-################################################
-
-root ::= "\"red\""
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#
-        )
-    }
-
-    #[test]
-    fn simple_json_schema_value_number() {
-        let schema = r#"
-        {
-         "$schema": "https://json-schema.org/draft/2019-09/schema",
-         "const": 42
-     }
-                 "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $schema: https://json-schema.org/draft/2019-09/schema
-################################################
-
-root ::= "42"
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#
-        )
-    }
-
-    #[test]
-    fn simple_json_schema_value_boolean() {
-        let schema = r#"
-        {
-         "$schema": "https://json-schema.org/draft/2019-09/schema",
-         "const": true
-     }
-                 "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $schema: https://json-schema.org/draft/2019-09/schema
-################################################
-
-root ::= "true"
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#
-        )
-    }
-
-    #[test]
-    fn simple_json_schema_array() {
-        let schema = r#"
-        {
-         "$schema": "https://json-schema.org/draft/2019-09/schema",
-         "type": "array",
-         "items": {
-             "type": "string"
-         }
-     }
-                 "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $schema: https://json-schema.org/draft/2019-09/schema
-################################################
-
-symbol1-item ::= string ws
-root ::= "[" ws symbol1-item* ws "]" ws
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#
-        )
-    }
-
-    #[test]
-    fn simple_json_kitchen_sink() {
-        let schema = r#"
-        {
-            "$schema": "https://json-schema.org/draft/2019-09/schema",
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "age": {
-                    "type": "number"
-                },
-                "usesAI": {
-                    "type": "boolean"
-                },
-                "favoriteAnimal": {
-                    "enum": [
-                        "dog",
-                        "cat",
-                        "none"
-                    ]
-                },
-                "currentAIModel": {
-                    "oneOf": [
-                        {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "const": "hugging_face"
-                                },
-                                "name": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "const": "openai"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "favoriteColors": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        }
-                 "#;
-        let g = Grammar::from_json_schema(schema).unwrap();
-        let s = g.to_string();
-
-        pretty_assertions::assert_eq!(
-            s,
-            r#"################################################
-# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
-# $schema: https://json-schema.org/draft/2019-09/schema
-################################################
-
-symbol1-name-value ::= string ws
-symbol2-age-value ::= number ws
-symbol3-usesAI-value ::= boolean ws
-symbol4-favoriteAnimal-value ::= "\"dog\"" | "\"cat\"" | "\"none\""
-symbol7-type-value ::= "\"hugging_face\""
-symbol8-name-value ::= string ws
-symbol-6-oneof-0 ::= "{" ws "\"type\"" ws ":" ws symbol7-type-value "," ws "\"name\"" ws ":" ws symbol8-name-value "}" ws
-symbol10-type-value ::= "\"openai\""
-symbol-9-oneof-1 ::= "{" ws "\"type\"" ws ":" ws symbol10-type-value "}" ws
-symbol5-currentAIModel-value ::= symbol-6-oneof-0 | symbol-9-oneof-1
-symbol12-item ::= string ws
-symbol11-favoriteColors-value ::= "[" ws symbol12-item* ws "]" ws
-root ::= "{" ws "\"name\"" ws ":" ws symbol1-name-value "," ws "\"age\"" ws ":" ws symbol2-age-value "," ws "\"usesAI\"" ws ":" ws symbol3-usesAI-value "," ws "\"favoriteAnimal\"" ws ":" ws symbol4-favoriteAnimal-value "," ws "\"currentAIModel\"" ws ":" ws symbol5-currentAIModel-value "," ws "\"favoriteColors\"" ws ":" ws symbol11-favoriteColors-value "}" ws
-
-###############################
-# Primitive value type symbols
-###############################
-null ::= "null" ws
-boolean ::= "true" | "false" ws
-string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
-number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
-integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
-ws ::= [ \t\n]*
-"#
-        )
-    }
 
     #[test]
     fn simple_0() {
@@ -1264,6 +763,7 @@ ws ::= [ \t\n]*
                     ])],
                 },
             })],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(s, "root ::= \"yes\" | \"no\"\n");
@@ -1317,6 +817,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(
@@ -1403,6 +904,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(
@@ -1561,6 +1063,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(
@@ -1797,6 +1300,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(
@@ -2034,6 +1538,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
         let s = g.to_string();
         pretty_assertions::assert_eq!(
@@ -2101,6 +1606,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
 
         let s = g.to_string();
@@ -2719,6 +2225,7 @@ ws ::= [ \t\n]*
                     },
                 }),
             ],
+            ..Default::default()
         };
 
         let s = g.to_string();
