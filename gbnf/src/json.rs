@@ -129,6 +129,7 @@ fn create_simple_string_grammar_item(name: String) -> GrammarItem {
 /// [List of Json Schema Formats](https://www.learnjsonschema.com/2020-12/format-assertion/format/)
 pub enum JsonSchemaStringFormat {
     Date,
+    DateTime,
 }
 
 impl JsonSchemaStringFormat {
@@ -179,6 +180,196 @@ impl JsonSchemaStringFormat {
                             },
                             RepetitionType::Exact(2),
                         ),
+                        ProductionItem::Terminal(
+                            TerminalSymbol {
+                                value: "\\\"".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                    ],
+                },
+            ),
+            JsonSchemaStringFormat::DateTime => (
+                NonTerminalSymbol {
+                    name: "datetime".to_string(),
+                },
+                Production {
+                    items: vec![
+                        // " (Begin String)
+                        ProductionItem::Terminal(
+                            TerminalSymbol {
+                                value: "\\\"".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                        // Year
+                        ProductionItem::CharacterSet(
+                            CharacterSet {
+                                is_complement: false,
+                                items: vec![CharacterSetItem::CharacterRange('0', '9')],
+                            },
+                            RepetitionType::Exact(4),
+                        ),
+                        // -
+                        ProductionItem::Terminal(
+                            TerminalSymbol {
+                                value: "-".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                        // Month
+                        ProductionItem::CharacterSet(
+                            CharacterSet {
+                                is_complement: false,
+                                items: vec![CharacterSetItem::CharacterRange('0', '9')],
+                            },
+                            RepetitionType::Exact(2),
+                        ),
+                        // -
+                        ProductionItem::Terminal(
+                            TerminalSymbol {
+                                value: "-".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                        // Day
+                        ProductionItem::CharacterSet(
+                            CharacterSet {
+                                is_complement: false,
+                                items: vec![CharacterSetItem::CharacterRange('0', '9')],
+                            },
+                            RepetitionType::Exact(2),
+                        ),
+                        // Split Date and Time "T"
+                        ProductionItem::Terminal(
+                            TerminalSymbol {
+                                value: "T".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                        // Hour
+                        ProductionItem::CharacterSet(
+                            CharacterSet {
+                                is_complement: false,
+                                items: vec![CharacterSetItem::CharacterRange('0', '9')],
+                            },
+                            RepetitionType::Exact(2),
+                        ),
+                        // :
+                        ProductionItem::Terminal(
+                            TerminalSymbol {
+                                value: ":".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                        // Minute
+                        ProductionItem::CharacterSet(
+                            CharacterSet {
+                                is_complement: false,
+                                items: vec![CharacterSetItem::CharacterRange('0', '9')],
+                            },
+                            RepetitionType::Exact(2),
+                        ),
+                        // :
+                        ProductionItem::Terminal(
+                            TerminalSymbol {
+                                value: ":".to_string(),
+                            },
+                            RepetitionType::One,
+                        ),
+                        // Seconds
+                        ProductionItem::CharacterSet(
+                            CharacterSet {
+                                is_complement: false,
+                                items: vec![CharacterSetItem::CharacterRange('0', '9')],
+                            },
+                            RepetitionType::Exact(2),
+                        ),
+                        // TZ Info
+                        ProductionItem::OneOf(vec![
+                            // UTC shorthand
+                            Production {
+                                items: vec![ProductionItem::Group(
+                                    Box::new(Production {
+                                        items: vec![
+                                            ProductionItem::Terminal(
+                                                TerminalSymbol {
+                                                    value: "Z".to_string(),
+                                                },
+                                                RepetitionType::One,
+                                            ),
+                                            // " (End String)
+                                            ProductionItem::Terminal(
+                                                TerminalSymbol {
+                                                    value: "\\\"".to_string(),
+                                                },
+                                                RepetitionType::One,
+                                            ),
+                                        ],
+                                    }),
+                                    RepetitionType::One,
+                                )],
+                            },
+                            // static timezone offset
+                            Production {
+                                items: vec![ProductionItem::Group(
+                                    Box::new(Production {
+                                        items: vec![
+                                            // positive or negative offset
+                                            ProductionItem::OneOf(vec![
+                                                // + (negative offset)
+                                                Production {
+                                                    items: vec![ProductionItem::Terminal(
+                                                        TerminalSymbol {
+                                                            value: "+".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    )],
+                                                },
+                                                // - (negative offset)
+                                                Production {
+                                                    items: vec![ProductionItem::Terminal(
+                                                        TerminalSymbol {
+                                                            value: "-".to_string(),
+                                                        },
+                                                        RepetitionType::One,
+                                                    )],
+                                                },
+                                            ]),
+                                            // Hour offset
+                                            ProductionItem::CharacterSet(
+                                                CharacterSet {
+                                                    is_complement: false,
+                                                    items: vec![CharacterSetItem::CharacterRange(
+                                                        '0', '9',
+                                                    )],
+                                                },
+                                                RepetitionType::Exact(2),
+                                            ),
+                                            // :
+                                            ProductionItem::Terminal(
+                                                TerminalSymbol {
+                                                    value: ":".to_string(),
+                                                },
+                                                RepetitionType::One,
+                                            ),
+                                            // Minute offset
+                                            ProductionItem::CharacterSet(
+                                                CharacterSet {
+                                                    is_complement: false,
+                                                    items: vec![CharacterSetItem::CharacterRange(
+                                                        '0', '9',
+                                                    )],
+                                                },
+                                                RepetitionType::Exact(2),
+                                            ),
+                                        ],
+                                    }),
+                                    RepetitionType::One,
+                                )],
+                            },
+                        ]),
+                        // " (End String)
                         ProductionItem::Terminal(
                             TerminalSymbol {
                                 value: "\\\"".to_string(),
@@ -615,11 +806,11 @@ pub(crate) fn parse_json_schema_to_grammar(
     Ok(c)
 }
 
-
 #[cfg(test)]
-mod json_schema_test{
-    use schemars::{schema_for, JsonSchema};
+mod json_schema_test {
     use crate::Grammar;
+    use chrono::FixedOffset;
+    use schemars::{JsonSchema, schema_for};
 
     #[test]
     fn simple_json_schema_boolean() {
@@ -770,6 +961,42 @@ ws ::= [ \t\n]*
     }
 
     #[test]
+    fn simple_json_schema_date_time() {
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        #[schemars(extend("$id" = "https://example.com/schema.json"))]
+        struct DateTest {
+            date: chrono::DateTime<FixedOffset>,
+        }
+        let g = Grammar::from_json_schema_value(&schema_for!(DateTest).to_value()).unwrap();
+        let s = g.to_string();
+        pretty_assertions::assert_eq!(
+            s,
+            r#"################################################
+# DYNAMICALLY GENERATED JSON-SCHEMA GRAMMAR
+# $id: https://example.com/schema.json
+# $schema: https://json-schema.org/draft/2020-12/schema
+# title: DateTest
+################################################
+
+symbol1-date-value ::= datetime ws
+root ::= "{" ws "\"date\"" ws ":" ws symbol1-date-value "}" ws
+
+###############################
+# Primitive value type symbols
+###############################
+boolean ::= "true" | "false" ws
+datetime ::= "\"" [0-9]{4} "-" [0-9]{2} "-" [0-9]{2} "T" [0-9]{2} ":" [0-9]{2} ":" [0-9]{2} ("Z" "\"") | ("+" | "-" [0-9]{2} ":" [0-9]{2}) "\""
+integer ::= ("-"? ([0-9] | [1-9] [0-9]*)) ws
+null ::= "null" ws
+number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)? ws
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\"" ws
+ws ::= [ \t\n]*
+"#
+        );
+    }
+
+    #[test]
     fn simple_json_schema_basic_object() {
         #[derive(JsonSchema)]
         #[allow(dead_code)]
@@ -779,10 +1006,10 @@ ws ::= [ \t\n]*
                 "$id"="https://example.com/enumerated-values.schema.json"
             )
         )]
-        struct TestSchema{
+        struct TestSchema {
             a: bool,
             b: f32,
-            c: String
+            c: String,
         }
         let g = Grammar::from_json_schema_value(&schema_for!(TestSchema).to_value()).unwrap();
         let s = g.to_string();
@@ -818,10 +1045,10 @@ ws ::= [ \t\n]*
         #[derive(JsonSchema)]
         #[allow(dead_code)]
         #[schemars(inline)]
-        struct Nested{
+        struct Nested {
             x: bool,
             y: f32,
-            z: String
+            z: String,
         }
         #[derive(JsonSchema)]
         #[allow(dead_code)]
@@ -831,10 +1058,10 @@ ws ::= [ \t\n]*
                 "$id"="https://example.com/enumerated-values.schema.json"
             )
         )]
-        struct TestSchema{
+        struct TestSchema {
             a: bool,
             b: f32,
-            c: Nested
+            c: Nested,
         }
         let g = Grammar::from_json_schema_value(&schema_for!(TestSchema).to_value()).unwrap();
         let s = g.to_string();
@@ -901,16 +1128,16 @@ ws ::= [ \t\n]*
         //#[allow(dead_code, non_snake_case)]
         //#[schemars(inline)]
         //struct Kind1 {
-            //firstName: String,
-            //lastName: String,
-            //sport: String
+        //firstName: String,
+        //lastName: String,
+        //sport: String
         //}
         //#[derive(JsonSchema)]
         //#[allow(dead_code)]
         //#[schemars(untagged)]
         //enum TestSchema {
-            //Complex(Kind1),
-            //Simple(f32)
+        //Complex(Kind1),
+        //Simple(f32)
         //}
         let g = Grammar::from_json_schema(schema).unwrap();
         let s = g.to_string();
@@ -945,15 +1172,16 @@ ws ::= [ \t\n]*
     fn simple_json_schema_enum() {
         #[derive(JsonSchema)]
         #[allow(dead_code, non_camel_case_types)]
-        #[schemars(
-            title = "Enumerated Values",
-        )]
-        enum TestSchema{
+        #[schemars(title = "Enumerated Values")]
+        enum TestSchema {
             red,
             amber,
-            green
+            green,
         }
-        println!("{}", serde_json::to_string_pretty(&schema_for!(TestSchema).to_value()).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&schema_for!(TestSchema).to_value()).unwrap()
+        );
         let g = Grammar::from_json_schema_value(&schema_for!(TestSchema).to_value()).unwrap();
         let s = g.to_string();
 
