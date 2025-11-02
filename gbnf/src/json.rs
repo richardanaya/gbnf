@@ -757,6 +757,82 @@ fn create_const_grammar_item(
         } else {
             Err(JsonSchemaParseError::ConstParseError("boolean".to_string()))
         }
+    } else if value.is_array() {
+        if let Some(v_as_array) = value.as_array() {
+            let sub_consts_grammars = v_as_array
+                .iter()
+                .filter_map(|item| create_const_grammar_item(item, "x".to_string()).ok())
+                .filter_map(|grammar_item| {
+                    if let GrammarItem::Rule(grammar_rule) = grammar_item {
+                        Some(grammar_rule.rhs.items)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let ws_terminal = ProductionItem::NonTerminal(
+                NonTerminalSymbol {
+                    name: "ws".to_string(),
+                },
+                RepetitionType::One,
+            );
+
+            let seperator = vec![
+                ProductionItem::Terminal(
+                    TerminalSymbol {
+                        value: ",".to_string(),
+                    },
+                    RepetitionType::One,
+                ),
+                ws_terminal.clone(),
+            ];
+
+            let rhs_start = vec![
+                ProductionItem::Terminal(
+                    TerminalSymbol {
+                        value: "[".to_string(),
+                    },
+                    RepetitionType::One,
+                ),
+                ws_terminal.clone(),
+            ];
+
+            let rhs_end = vec![
+                ProductionItem::Terminal(
+                    TerminalSymbol {
+                        value: "]".to_string(),
+                    },
+                    RepetitionType::One,
+                ),
+                ws_terminal.clone(),
+            ];
+
+            // construct inner values with comma seperation correctly
+            let num_items = sub_consts_grammars.len() - 1;
+            let last = sub_consts_grammars.last().cloned().unwrap();
+            let flatten_inner = sub_consts_grammars
+                .into_iter()
+                .zip(vec![seperator.clone(); num_items])
+                .map(|(item, sep)| item.iter().chain(sep.iter()).cloned().collect::<Vec<_>>())
+                .chain(vec![last])
+                .flatten()
+                .collect::<Vec<_>>();
+
+            Ok(GrammarItem::Rule(Rule {
+                lhs: NonTerminalSymbol { name },
+                rhs: Production {
+                    items: rhs_start
+                        .iter()
+                        .chain(flatten_inner.iter())
+                        .chain(rhs_end.iter())
+                        .cloned()
+                        .collect(),
+                },
+            }))
+        } else {
+            Err(JsonSchemaParseError::ConstParseError("array".to_string()))
+        }
     } else {
         Err(JsonSchemaParseError::UnknownConstantValueType)
     }
