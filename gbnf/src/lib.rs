@@ -271,7 +271,9 @@ impl Grammar {
         let json = serde_json::from_str::<serde_json::Value>(schema)?;
         Grammar::from_json_schema_value(&json)
     }
-    pub fn from_json_schema_value(schema: &serde_json::Value) -> Result<Grammar, JsonSchemaParseError> {
+    pub fn from_json_schema_value(
+        schema: &serde_json::Value,
+    ) -> Result<Grammar, JsonSchemaParseError> {
         let mut g = Grammar::default();
 
         // add $id, $schema, title as commments at top of file
@@ -2234,5 +2236,4 @@ mod tests {
             "root ::= object\nvalue ::= object | array | string | number | (\"true\" | \"false\" | \"null\") ws\nobject ::= \"{\" ws (string \":\" ws value (\",\" ws string \":\" ws value)*)? \"}\" ws\narray ::= \"[\" ws (value (\",\" ws value)*)? \"]\" ws\nstring ::= \"\\\"\" ([^\"\\\\] | \"\\\\\" ([\"\\\\/bfnrt] | \"u\" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* \"\\\"\" ws\nnumber ::= (\"-\"? ([0-9] | [1-9] [0-9]*)) (\".\" [0-9]+)? ([eE] [-+]? [0-9]+)? ws\n# Optional space: by convention, applied in this grammar after literal chars when allowed\nws ::= ([ \\t\\n] ws)?\n"
         );
     }
-
 }
