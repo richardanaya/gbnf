@@ -469,20 +469,44 @@ fn create_array_grammar_items(
                 items: rhs_start
                     .iter()
                     .chain(
-                        [
-                            ProductionItem::NonTerminal(
-                                NonTerminalSymbol {
-                                    name: item_template_name.clone(),
-                                },
-                                RepetitionType::ZeroOrMore,
-                            ),
-                            ProductionItem::NonTerminal(
-                                NonTerminalSymbol {
-                                    name: "ws".to_string(),
-                                },
-                                RepetitionType::One,
-                            ),
-                        ]
+                        [ProductionItem::Group(
+                            Box::new(Production {
+                                items: vec![
+                                    ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: item_template_name.clone(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                    ProductionItem::Group(
+                                        Box::new(Production {
+                                            items: vec![
+                                                ProductionItem::Terminal(
+                                                    TerminalSymbol {
+                                                        value: ",".to_string(),
+                                                    },
+                                                    RepetitionType::One,
+                                                ),
+                                                ProductionItem::NonTerminal(
+                                                    NonTerminalSymbol {
+                                                        name: "ws".to_string(),
+                                                    },
+                                                    RepetitionType::One,
+                                                ),
+                                                ProductionItem::NonTerminal(
+                                                    NonTerminalSymbol {
+                                                        name: item_template_name.clone(),
+                                                    },
+                                                    RepetitionType::One,
+                                                ),
+                                            ],
+                                        }),
+                                        RepetitionType::ZeroOrMore,
+                                    ),
+                                ],
+                            }),
+                            RepetitionType::ZeroOrOne,
+                        )]
                         .iter(),
                     )
                     .chain(rhs_end.iter())
