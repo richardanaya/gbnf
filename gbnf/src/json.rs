@@ -469,20 +469,44 @@ fn create_array_grammar_items(
                 items: rhs_start
                     .iter()
                     .chain(
-                        [
-                            ProductionItem::NonTerminal(
-                                NonTerminalSymbol {
-                                    name: item_template_name.clone(),
-                                },
-                                RepetitionType::ZeroOrMore,
-                            ),
-                            ProductionItem::NonTerminal(
-                                NonTerminalSymbol {
-                                    name: "ws".to_string(),
-                                },
-                                RepetitionType::One,
-                            ),
-                        ]
+                        [ProductionItem::Group(
+                            Box::new(Production {
+                                items: vec![
+                                    ProductionItem::NonTerminal(
+                                        NonTerminalSymbol {
+                                            name: item_template_name.clone(),
+                                        },
+                                        RepetitionType::One,
+                                    ),
+                                    ProductionItem::Group(
+                                        Box::new(Production {
+                                            items: vec![
+                                                ProductionItem::Terminal(
+                                                    TerminalSymbol {
+                                                        value: ",".to_string(),
+                                                    },
+                                                    RepetitionType::One,
+                                                ),
+                                                ProductionItem::NonTerminal(
+                                                    NonTerminalSymbol {
+                                                        name: "ws".to_string(),
+                                                    },
+                                                    RepetitionType::One,
+                                                ),
+                                                ProductionItem::NonTerminal(
+                                                    NonTerminalSymbol {
+                                                        name: item_template_name.clone(),
+                                                    },
+                                                    RepetitionType::One,
+                                                ),
+                                            ],
+                                        }),
+                                        RepetitionType::ZeroOrMore,
+                                    ),
+                                ],
+                            }),
+                            RepetitionType::ZeroOrOne,
+                        )]
                         .iter(),
                     )
                     .chain(rhs_end.iter())
@@ -1412,7 +1436,7 @@ ws ::= [ \t\n]*
 ################################################
 
 symbol1-item ::= string ws
-root ::= "[" ws symbol1-item* ws "]" ws
+root ::= "[" ws (symbol1-item ("," ws symbol1-item)*)? "]" ws
 
 ###############################
 # Primitive value type symbols
@@ -1504,7 +1528,7 @@ symbol10-type-value ::= "\"openai\""
 symbol-9-oneof-1 ::= "{" ws "\"type\"" ws ":" ws symbol10-type-value "}" ws
 symbol5-currentAIModel-value ::= symbol-6-oneof-0 | symbol-9-oneof-1
 symbol12-item ::= string ws
-symbol11-favoriteColors-value ::= "[" ws symbol12-item* ws "]" ws
+symbol11-favoriteColors-value ::= "[" ws (symbol12-item ("," ws symbol12-item)*)? "]" ws
 root ::= "{" ws "\"name\"" ws ":" ws symbol1-name-value "," ws "\"age\"" ws ":" ws symbol2-age-value "," ws "\"usesAI\"" ws ":" ws symbol3-usesAI-value "," ws "\"favoriteAnimal\"" ws ":" ws symbol4-favoriteAnimal-value "," ws "\"currentAIModel\"" ws ":" ws symbol5-currentAIModel-value "," ws "\"favoriteColors\"" ws ":" ws symbol11-favoriteColors-value "}" ws
 
 ###############################
